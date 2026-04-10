@@ -1,0 +1,35 @@
+# =========================
+# 1. Môi trường ảo (Virtual Environment)
+# =========================
+venv/
+.venv/
+env/
+
+# =========================
+# 2. File rác và Cache của Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# 3. Dữ liệu
+# =========================
+data/*
+!data/.gitkeep
+
+# =========================
+# 4. Bảo mật & Biến môi trường
+# =========================
+.env
+.env.local
+secrets.toml
+.streamlit/secrets.toml
+
+# =========================
+# 5. File tạm thời của hệ thống
+# =========================
+.DS_Store
+Thumbs.db
+/data
+/models

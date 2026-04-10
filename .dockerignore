@@ -1,0 +1,13 @@
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+.git/
+.env
+
+# Bỏ qua dữ liệu và model nặng (sẽ mount hoặc tải sau nếu cần)
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
