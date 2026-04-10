@@ -2,125 +2,240 @@ import streamlit as st
 import streamlit_shadcn_ui as ui
 import pandas as pd
 
-# Thiết lập trang rộng (giống dashboard)
-st.set_page_config(page_title="AI Screener", layout="wide", initial_sidebar_state="expanded")
+# ==========================================
+# 0. PAGE CONFIG & ROUTER
+# ==========================================
+st.set_page_config(page_title="RecruitAI", layout="wide", initial_sidebar_state="expanded")
 
-# Thêm chút CSS custom nhẹ cho các hộp thông báo (do Streamlit không có sẵn màu nền nhạt)
+# Khởi tạo state để theo dõi trang hiện tại
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "analyzer"
+
+def change_page(page_name):
+    st.session_state.current_page = page_name
+
+# Vẫn giữ lại 1 chút CSS cực nhỏ cho avatar/profile text nếu cần
 st.markdown("""
 <style>
-    .reasoning-box-green { background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; color: #166534; margin-bottom: 10px; }
-    .reasoning-box-red { background-color: #fef2f2; border: 1px solid #fecaca; padding: 15px; border-radius: 8px; color: #991b1b; margin-bottom: 10px; }
     .profile-name { font-size: 1.2rem; font-weight: bold; margin-bottom: 0;}
     .profile-sub { font-size: 0.9rem; color: #64748b; margin-top: 0;}
+    .block-container { padding-top: 4rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. SIDEBAR (Tương đương Menu Trái)
+# 1. SIDEBAR NAVIGATION
 # ==========================================
 with st.sidebar:
-    st.markdown("### ✨ AI Screener")
+    st.markdown("### 🧬 RecruitAI")
+    st.caption("Enterprise Plan")
     st.markdown("---")
     
-    # Dùng phím tắt menu
-    ui.button("Dashboard", variant="ghost", key="nav_dash")
-    ui.button("Resume Analyzer", variant="default", key="nav_analyzer") # Nút đang active
-    ui.button("Job Board", variant="ghost", key="nav_job")
-    ui.button("Talent Pool", variant="ghost", key="nav_talent")
-    
+    # Điều hướng trang
+    if ui.button("Dashboard", variant="ghost" if st.session_state.current_page != "dashboard" else "secondary", key="nav_dash"):
+        change_page("dashboard")
+        st.rerun()
+        
+    if ui.button("Resume Analyzer", variant="ghost" if st.session_state.current_page != "analyzer" else "secondary", key="nav_analyzer"):
+        change_page("analyzer")
+        st.rerun()
+
+    if ui.button("Candidate Ranking", variant="ghost" if st.session_state.current_page != "ranking" else "secondary", key="nav_ranking"):
+        change_page("ranking")
+        st.rerun()
+        
+    if ui.button("Analytics & Ethics", variant="ghost" if st.session_state.current_page != "ethics" else "secondary", key="nav_ethics"):
+        change_page("ethics")
+        st.rerun()
+        
     st.markdown("---")
     st.caption("SYSTEM")
     ui.button("Settings", variant="ghost", key="nav_settings")
+
+
+# ==========================================
+# 2. MAIN CONTENT
+# ==========================================
+
+# ------------------------------------------
+# TRANG 1: RESUME ANALYZER
+# ------------------------------------------
+if st.session_state.current_page == "analyzer":
+    st.caption("RecruitAI > **Resume Analyzer**")
+
+    header_col1, header_col2 = st.columns([3, 1])
+    with header_col1:
+        st.title("Resume Analyzer")
+    with header_col2:
+        jd_options = ["Senior Product Designer", "Frontend Engineer (React)", "Backend Developer (Python)"]
+        selected_jd = st.selectbox("Job Description", jd_options, label_visibility="collapsed")
+
+    st.write("") 
+    uploaded_file = st.file_uploader("Drag and drop resume here (PDF, DOCX)", type=["pdf", "docx"])
+    st.markdown("---")
+
+    col_left, col_right = st.columns([4, 6], gap="large")
+
+    with col_left:
+        st.subheader("Extracted Profile 👤")
+        st.markdown("<p class='profile-name'>Alex Rivera</p><p class='profile-sub'>6+ Years Experience • San Francisco, CA</p>", unsafe_allow_html=True)
+        st.markdown("**Technical Skills**")
+        ui.badges(badge_list=[("UI/UX Design", "secondary"), ("Figma", "secondary"), ("React", "secondary"), ("Tailwind CSS", "secondary")], key="skills_badges")
+        st.markdown("<br>**Education**", unsafe_allow_html=True)
+        st.markdown("🎓 **B.S. Interaction Design**<br>*University of California, Berkeley*", unsafe_allow_html=True)
+
+    with col_right:
+        st.subheader("AI Reasoning 🧠")
+        score_col, text_col = st.columns([1, 3])
+        with score_col:
+            st.metric(label="Match Score", value="85%", delta="High Fit", delta_color="normal")
+        with text_col:
+            st.write("Highly qualified candidate with strong overlap in visual design and frontend knowledge. Past experience aligns perfectly.")
+            st.write("✅ Technical Fit &nbsp;&nbsp; ✅ Experience Level &nbsp;&nbsp; ❌ Domain Gap")
+
+        # Dùng native st.success / st.warning / st.info thay vì HTML custom
+        st.success("**✔️ Verified:** Candidate has extensive experience building Design Systems which is a core requirement for this role.")
+        st.error("**⚠️ Warning:** Limited experience mentioned regarding User Research methodologies.")
+        st.success("**✔️ Verified:** Location match: Based in San Francisco.")
+
+    st.markdown("---")
+    st.subheader("Agent Calibration")
+    st.write("Help the AI learn by providing feedback on its reasoning.")
+
+    calib_col1, calib_col2 = st.columns([2, 8])
+    with calib_col1:
+        st.write("Do you agree?")
+        vote_col1, vote_col2 = st.columns(2)
+        with vote_col1:
+            ui.button("👍 Yes", variant="outline", key="vote_yes")
+        with vote_col2:
+            ui.button("👎 No", variant="outline", key="vote_no")
+    with calib_col2:
+        feedback_text = st.text_area("Add override notes or feedback on the AI's logic...", label_visibility="collapsed")
+        
+    col_empty, col_btn = st.columns([8, 2])
+    with col_btn:
+        if ui.button("Submit Feedback", variant="default", key="submit_fb"):
+            st.toast("Feedback saved!")
+
+# ------------------------------------------
+# TRANG 2: CANDIDATE RANKING
+# ------------------------------------------
+elif st.session_state.current_page == "ranking":
+    st.caption("RecruitAI > **Candidate Ranking**")
     
-    st.success("🟢 AI Engine Online")
-
-# ==========================================
-# 2. MAIN HEADER (Tương đương Top Navbar)
-# ==========================================
-st.caption("Dashboard > **Resume Analyzer**")
-
-header_col1, header_col2 = st.columns([3, 1])
-with header_col1:
-    st.title("Resume Analyzer")
-with header_col2:
-    # Dropdown chọn JD
-    jd_options = ["Senior Product Designer", "Frontend Engineer (React)", "Backend Developer (Python)"]
-    selected_jd = st.selectbox("Job Description", jd_options, label_visibility="collapsed")
-
-st.write("") # Tạo khoảng trắng
-
-# ==========================================
-# 3. UPLOAD AREA (Core Area)
-# ==========================================
-uploaded_file = st.file_uploader("Drag and drop resume here (PDF, DOCX)", type=["pdf", "docx"])
-
-st.markdown("---")
-
-# ==========================================
-# 4. ANALYSIS VIEW (40/60 Split)
-# ==========================================
-col_left, col_right = st.columns([4, 6], gap="large")
-
-# --- CỘT TRÁI: EXTRACTED PROFILE ---
-with col_left:
-    st.subheader("Extracted Profile 👤")
+    col_header1, col_header2 = st.columns([4, 1])
+    with col_header1:
+        st.title("Candidate Ranking")
+        st.write("Compare and rank applicants based on custom job role requirements")
+    with col_header2:
+        st.write("") 
+        ui.button("🔍 New Ranking", variant="default", key="new_ranking_btn")
     
-    # Mock data hiển thị
-    st.markdown("<p class='profile-name'>Alex Rivera</p><p class='profile-sub'>6+ Years Experience • San Francisco, CA</p>", unsafe_allow_html=True)
+    st.write("")
     
-    st.markdown("**Technical Skills**")
-    # Sử dụng badges của Shadcn UI
-    ui.badges(badge_list=[("UI/UX Design", "secondary"), ("Figma", "secondary"), ("React", "secondary"), ("Tailwind CSS", "secondary")], key="skills_badges")
+    # Mock Data
+    data = {
+        "ID": ["USR-9921", "USR-8842", "USR-7731", "USR-6610", "USR-5509", "USR-4422"],
+        "Role": ["Senior Frontend Engineer", "Product Designer", "Backend Developer", "Data Scientist", "DevOps Engineer", "UX Researcher"],
+        "Match Score": [94, 88, 82, 79, 75, 72],
+        "AI Summary": ["Expertise in React and system design, proven track record...", "Strong portfolio with focus on accessibility...", "Proficient in Go and distributed systems...", "Experience with LLMs and data pipelines...", "Strong Kubernetes and CI/CD background...", "Skilled in qualitative analysis and user interviews..."],
+        "Action": ["View Deep-Dive", "View Deep-Dive", "View Deep-Dive", "View Deep-Dive", "View Deep-Dive", "View Deep-Dive"]
+    }
+    df = pd.DataFrame(data)
     
-    st.markdown("<br>**Education**", unsafe_allow_html=True)
-    st.markdown("🎓 **B.S. Interaction Design**<br>*University of California, Berkeley*", unsafe_allow_html=True)
-
-# --- CỘT PHẢI: AI REASONING ---
-with col_right:
-    st.subheader("AI Reasoning 🧠")
+    # Dùng st.dataframe với column_config để tạo thanh Progress trực tiếp trong bảng
+    st.dataframe(
+        df,
+        column_config={
+            "ID": st.column_config.TextColumn("Anonymized ID", width="small"),
+            "Role": st.column_config.TextColumn("Role", width="medium"),
+            "Match Score": st.column_config.ProgressColumn(
+                "Match Score",
+                help="AI assigned match score",
+                format="%d%%",
+                min_value=0,
+                max_value=100,
+            ),
+            "AI Summary": st.column_config.TextColumn("AI Summary", width="large"),
+            "Action": st.column_config.TextColumn("Action", width="small")
+        },
+        hide_index=True,
+        use_container_width=True
+    )
     
-    score_col, text_col = st.columns([1, 3])
-    with score_col:
-        # Streamlit dùng st.metric cho các con số nổi bật
-        st.metric(label="Match Score", value="85%", delta="High Fit", delta_color="normal")
-    with text_col:
-        st.write("Highly qualified candidate with strong overlap in visual design and frontend knowledge. Past experience at Adobe aligns perfectly with our enterprise focus.")
-        st.write("✅ Technical Fit &nbsp;&nbsp; ✅ Experience Level &nbsp;&nbsp; ❌ Domain Gap")
+    st.caption("Showing 1 to 6 of 128 results")
 
-    # Các hộp lý luận chi tiết (Dùng HTML/CSS đã khai báo ở trên để giống màu thiết kế của bạn)
-    st.markdown("""
-        <div class="reasoning-box-green">
-            <b>✔️ Verified:</b> Candidate has extensive experience building Design Systems which is a core requirement for this role.
-        </div>
-        <div class="reasoning-box-red">
-            <b>⚠️ Warning:</b> Limited experience mentioned regarding User Research methodologies.
-        </div>
-        <div class="reasoning-box-green">
-            <b>✔️ Verified:</b> Location match: Based in San Francisco.
-        </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("---")
-
-# ==========================================
-# 5. FOOTER: AGENT CALIBRATION
-# ==========================================
-st.subheader("Agent Calibration")
-st.write("Help the AI learn by providing feedback on its reasoning.")
-
-calib_col1, calib_col2 = st.columns([2, 8])
-with calib_col1:
-    st.write("Do you agree?")
-    vote_col1, vote_col2 = st.columns(2)
-    with vote_col1:
-        ui.button("👍 Yes", variant="outline", key="vote_yes")
-    with vote_col2:
-        ui.button("👎 No", variant="outline", key="vote_no")
-
-with calib_col2:
-    feedback_text = st.text_area("Add override notes or feedback on the AI's logic...", label_visibility="collapsed")
+# ------------------------------------------
+# TRANG 3: ANALYTICS & ETHICS DASHBOARD
+# ------------------------------------------
+elif st.session_state.current_page == "ethics":
+    st.caption("RecruitAI > **Analytics & Ethics**")
+    st.title("Ethics Dashboard")
+    st.write("")
     
-col_empty, col_btn = st.columns([8, 2])
-with col_btn:
-    if ui.button("Submit Feedback", variant="default", key="submit_fb"):
-        st.toast("Feedback saved!")
+    # -- Row 1: KPI Metrics bằng st.metric --
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric(label="Total Scanned", value="12,482", delta="12.5%")
+    k2.metric(label="Avg. Match", value="78.5%", delta="3.2%")
+    k3.metric(label="Diversity Index", value="92/100", delta="-0.8%", delta_color="inverse")
+    k4.metric(label="Bias Score", value="Low (0.02)", delta="Stable", delta_color="off")
+    
+    st.markdown("---")
+    
+    # -- Row 2: Transparency & Fairness --
+    col_trans_text, col_trans_score = st.columns([2, 1], gap="large")
+    
+    with col_trans_text:
+        st.subheader("Transparency & Fairness")
+        st.write("Our AI utilizes advanced debiasing techniques to ensure equitable hiring outcomes. This module monitors for protected class disparities in real-time, providing deep insights into the integrity of your algorithmic selection process.")
+        
+        st.info("**🛡️ Bias Mitigation Engines:** Algorithms are trained to exclude proxy variables for protected characteristics, focusing strictly on skill-based merit.")
+        st.info("**🛡️ Real-time Parity Monitoring:** Continuous calculation of selection rates across different demographic groups to prevent disparate impact.")
+        st.info("**🛡️ Audit-Ready Documentation:** Comprehensive logging of AI decision-making factors for full compliance with EEOC and local regulations.")
+        
+        btn_col1, btn_col2, _ = st.columns([1, 1, 2])
+        with btn_col1:
+            ui.button("View Full Audit Logs", variant="default", key="btn_audit")
+        with btn_col2:
+            ui.button("Export Ethics Report", variant="outline", key="btn_export")
+
+    with col_trans_score:
+        st.container(border=True)
+        st.markdown("<h1 style='text-align: center; font-size: 5rem;'>⚖️</h1>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>Integrity Score: 98%</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: gray;'>High confidence algorithmic neutrality</p>", unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # -- Row 3: Demographic Parity & Ethics Statement --
+    col_parity, col_statement = st.columns(2, gap="large")
+    
+    with col_parity:
+        st.subheader("Demographic Parity")
+        
+        st.write("Gender Equality: **0.96** (Target: 1.0)")
+        st.progress(96)
+        
+        st.write("Racial Fairness: **0.94** (Target: 1.0)")
+        st.progress(94)
+        
+        st.write("Age Neutrality: **0.99** (Target: 1.0)")
+        st.progress(99)
+
+    with col_statement:
+        st.success("""
+        ### AI Ethics Statement
+        
+        "Our commitment to ethical AI means we prioritize human oversight in every automated decision. 
+        We believe technology should expand opportunities, not restrict them through hidden bias."
+        
+        📖 [Read our full Privacy & Fairness Policy](#)
+        """)
+
+# ------------------------------------------
+# TRANG TRỐNG: DASHBOARD (Placeholder)
+# ------------------------------------------
+elif st.session_state.current_page == "dashboard":
+    st.title("Dashboard")
+    st.write("Trang tổng quan sẽ hiển thị ở đây...")
