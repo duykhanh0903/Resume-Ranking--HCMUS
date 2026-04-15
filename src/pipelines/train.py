@@ -5,7 +5,7 @@ from sentence_transformers.sentence_transformer import losses, evaluation
 from torch.utils.data import DataLoader
 from utils import load_data_for_sbert
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PROCESSED_DATA_DIR = os.path.join(BASE_DIR, "data", "processed")
 MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "sbert_resume_ranking")
 

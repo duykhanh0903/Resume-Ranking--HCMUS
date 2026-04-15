@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ================= CẤU HÌNH ĐƯỜNG DẪN TƯƠNG ĐỐI =================
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 INPUT_CSV_PATH = os.path.join(BASE_DIR, "data", "raw", "resume_jd_fit.csv")
 CLEANED_JSON_PATH = os.path.join(BASE_DIR, "data", "processed", "cleaned_data.json")
 

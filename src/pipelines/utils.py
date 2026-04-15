@@ -2,7 +2,7 @@ import os
 import json
 from sentence_transformers import InputExample
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PROCESSED_DATA_DIR = os.path.join(BASE_DIR, "data", "processed")
 
 def load_data_for_sbert(file_name):

@@ -5,7 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from utils import load_data_for_sbert
 
 # ================= CẤU HÌNH ĐƯỜNG DẪN =================
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "sbert_resume_ranking") 
 BASE_MODEL_NAME = 'all-MiniLM-L6-v2'

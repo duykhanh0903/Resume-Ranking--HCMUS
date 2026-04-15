@@ -2,12 +2,14 @@ import os
 import pandas as pd
 from datasets import load_dataset
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 def main():
     print("1. Đang tải dataset mới (zevy17568/resume-job-description-fit)...")
     try:
         dataset = load_dataset("zevy17568/resume-job-description-fit")
         
-        output_dir = "data/raw"
+        output_dir = os.path.join(BASE_DIR, "data", "raw")
         os.makedirs(output_dir, exist_ok=True)
         
         if 'train' in dataset:
