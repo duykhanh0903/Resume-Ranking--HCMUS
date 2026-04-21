@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routers import analyzer
+from src.api.routers import jobsearch
 
 app = FastAPI(
     title="RecruitAI Backend API",
@@ -8,17 +9,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Cấu hình CORS để Frontend (Streamlit) có thể gọi API mà không bị block
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Trong thực tế doanh nghiệp sẽ set domain cụ thể
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Nhúng các router vào app chính
-app.include_router(analyzer.router, prefix="/api/v1")
+app.include_router(analyzer.router, prefix="/api/v1/analyzer", tags=["Resume Analysis"])
+app.include_router(jobsearch.router, prefix="/api/v1/jobsearch", tags=["Job Search"])
 
 @app.get("/")
 def health_check():

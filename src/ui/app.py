@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit_shadcn_ui as ui
 import pandas as pd
+import requests
 
 # ==========================================
 # 0. PAGE CONFIG & ROUTER
@@ -42,6 +43,10 @@ with st.sidebar:
 
     if ui.button("Candidate Ranking", variant="ghost" if st.session_state.current_page != "ranking" else "secondary", key="nav_ranking"):
         change_page("ranking")
+        st.rerun()
+
+    if ui.button("Job Search", variant="ghost" if st.session_state.current_page != "job_search" else "secondary", key="nav_jobsearch"):
+        change_page("job_search")
         st.rerun()
         
     if ui.button("Analytics & Ethics", variant="ghost" if st.session_state.current_page != "ethics" else "secondary", key="nav_ethics"):
@@ -239,3 +244,76 @@ elif st.session_state.current_page == "ethics":
 elif st.session_state.current_page == "dashboard":
     st.title("Dashboard")
     st.write("Trang tổng quan sẽ hiển thị ở đây...")
+
+# ------------------------------------------
+# TRANG 4: JOB SEARCH
+# ------------------------------------------
+elif st.session_state.current_page == "job_search":
+    st.caption("RecruitAI > **Job Search**")
+    
+    st.title("Smart Job Search")
+    st.write("Discover opportunities across global tech platforms with a single click.")
+    st.markdown("---")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        job_query = st.text_input("Role or Keywords", placeholder="e.g., NLP Engineer, React Developer")
+    with col2:
+        job_location = st.text_input("Location", placeholder="e.g., Remote, San Francisco, Vietnam")
+        
+    if ui.button("Search Openings", variant="default", key="btn_search_jobs"):
+        if not job_query:
+            st.warning("Please enter a job role or keyword to start searching.")
+        else:
+            with st.spinner("Aggregating job portals..."):
+                try:
+                    # Đảm bảo FastAPI Backend đang chạy ở cổng 8000
+                    api_url = "http://localhost:8000/api/v1/jobsearch/search"
+                    params = {"keyword": job_query, "location": job_location if job_location else "Remote"}
+                    
+                    response = requests.get(api_url, params=params)
+                    response.raise_for_status()
+                    
+                    data = response.json()
+                    
+                    if data.get("status") == "success" and data.get("data"):
+                        st.markdown("### 🎯 Recommended Portals")
+                        st.write("Click on any portal below to view aggregated results directly.")
+                        st.write("")
+                        
+                        # Hiển thị kết quả dạng Grid (2 cột)
+                        res_col1, res_col2 = st.columns(2)
+                        
+                        for idx, portal_data in enumerate(data["data"]):
+                            target_col = res_col1 if idx % 2 == 0 else res_col2
+                            
+                            with target_col:
+                                st.markdown(f"""
+                                <div style="
+                                    background: rgba(255, 255, 255, 0.03); 
+                                    border: 1px solid rgba(255, 255, 255, 0.1); 
+                                    border-radius: 8px; 
+                                    padding: 16px; 
+                                    margin-bottom: 16px;">
+                                    <h4 style="color: {portal_data['color']}; margin-top: 0;">{portal_data['portal']}</h4>
+                                    <p style="color: #888; font-size: 0.9rem;">{portal_data['title']}</p>
+                                    <a href="{portal_data['url']}" target="_blank" style="
+                                        display: inline-block;
+                                        background-color: {portal_data['color']};
+                                        color: white;
+                                        padding: 8px 16px;
+                                        text-decoration: none;
+                                        border-radius: 4px;
+                                        font-size: 0.9rem;
+                                        font-weight: bold;
+                                    ">View Postings ↗</a>
+                                </div>
+                                """, unsafe_allow_html=True)
+                    else:
+                        st.error("No data received from the aggregation engine.")
+                        
+                except requests.exceptions.ConnectionError:
+                    st.error("Error: Could not connect to the Backend API. Please ensure the FastAPI server is running on localhost:8000.")
+                except Exception as e:
+                    st.error(f"An unexpected error occurred: {str(e)}")
