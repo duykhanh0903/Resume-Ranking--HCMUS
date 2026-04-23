@@ -48,6 +48,10 @@ with st.sidebar:
     if ui.button("Job Search", variant="ghost" if st.session_state.current_page != "job_search" else "secondary", key="nav_jobsearch"):
         change_page("job_search")
         st.rerun()
+
+    if ui.button("Resume Builder", variant="ghost" if st.session_state.current_page != "resume_builder" else "secondary", key="nav_builder"):
+        change_page("resume_builder")
+        st.rerun()
         
     if ui.button("Analytics & Ethics", variant="ghost" if st.session_state.current_page != "ethics" else "secondary", key="nav_ethics"):
         change_page("ethics")
@@ -317,3 +321,99 @@ elif st.session_state.current_page == "job_search":
                     st.error("Error: Could not connect to the Backend API. Please ensure the FastAPI server is running on localhost:8000.")
                 except Exception as e:
                     st.error(f"An unexpected error occurred: {str(e)}")
+
+# ------------------------------------------
+# TRANG 5: RESUME BUILDER
+# ------------------------------------------
+elif st.session_state.current_page == "resume_builder":
+    st.caption("RecruitAI > **Resume Builder**")
+    st.title("Professional Resume Builder")
+    st.write("Generate a high-quality, ATS-friendly resume in seconds.")
+
+    # Khởi tạo State cho danh sách động nếu chưa có
+    if "experiences" not in st.session_state:
+        st.session_state.experiences = [{"company": "", "title": "", "date": "", "description": ""}]
+    if "educations" not in st.session_state:
+        st.session_state.educations = [{"school": "", "degree": "", "date": ""}]
+
+    with st.sidebar:
+        st.markdown("### Template Settings")
+        selected_template = st.selectbox("Select Layout", ["Modern", "Professional", "Minimal", "Creative"])
+
+    with st.container():
+        # 1. Personal Information
+        with st.expander("👤 Personal Information", expanded=True):
+            col1, col2 = st.columns(2)
+            name = col1.text_input("Full Name", placeholder="e.g. Alex Rivera")
+            title = col2.text_input("Professional Title", placeholder="e.g. NLP Engineer")
+            email = col1.text_input("Email Address")
+            phone = col2.text_input("Phone Number")
+            linkedin = st.text_input("LinkedIn URL")
+            summary = st.text_area("Professional Summary", help="A brief overview of your career and goals.")
+
+        # 2. Skills
+        with st.expander("🛠️ Technical Skills"):
+            skills_raw = st.text_input("Skills", placeholder="e.g. Python, FastAPI, NLP, PyTorch (separate by comma)")
+
+        # 3. Work Experience (Dynamic List)
+        with st.expander("💼 Work Experience"):
+            for i, exp in enumerate(st.session_state.experiences):
+                st.markdown(f"**Experience {i+1}**")
+                col_c, col_r = st.columns(2)
+                exp["company"] = col_c.text_input("Company Name", value=exp["company"], key=f"comp_{i}")
+                exp["title"] = col_r.text_input("Job Role", value=exp["title"], key=f"role_{i}")
+                exp["date"] = st.text_input("Duration", value=exp["date"], placeholder="e.g. Jan 2023 - Present", key=f"date_{i}")
+                exp["description"] = st.text_area("Key Responsibilities", value=exp["description"], key=f"desc_{i}")
+                st.divider()
+            
+            if st.button("➕ Add Another Experience"):
+                st.session_state.experiences.append({"company": "", "title": "", "date": "", "description": ""})
+                st.rerun()
+
+        # 4. Education (Dynamic List)
+        with st.expander("🎓 Education"):
+            for i, edu in enumerate(st.session_state.educations):
+                st.markdown(f"**Education {i+1}**")
+                edu["school"] = st.text_input("Institution", value=edu["school"], key=f"school_{i}")
+                col_d, col_y = st.columns(2)
+                edu["degree"] = col_d.text_input("Degree", value=edu["degree"], key=f"deg_{i}")
+                edu["date"] = col_y.text_input("Graduation Year", value=edu["date"], key=f"edy_{i}")
+                st.divider()
+                
+            if st.button("➕ Add Another Education"):
+                st.session_state.educations.append({"school": "", "degree": "", "date": ""})
+                st.rerun()
+
+    # Nút Generate
+    if st.button("Generate Resume", type="primary", use_container_width=True):
+        if not name or not email:
+            st.error("Please fill in at least your Name and Email.")
+        else:
+            with st.spinner("Crafting your document..."):
+                payload = {
+                    "template": selected_template,
+                    "name": name,
+                    "email": email,
+                    "phone": phone,
+                    "linkedin": linkedin,
+                    "title": title,
+                    "summary": summary,
+                    "experience": [exp for exp in st.session_state.experiences if exp["company"].strip()],
+                    "education": [edu for edu in st.session_state.educations if edu["school"].strip()],
+                    "skills": [s.strip() for s in skills_raw.split(",") if s.strip()]
+                }
+                
+                try:
+                    res = requests.post("http://localhost:8000/api/v1/builder/generate", json=payload)
+                    if res.status_code == 200:
+                        st.success("Your resume is ready for download!")
+                        st.download_button(
+                            label="📥 Download DOCX File",
+                            data=res.content,
+                            file_name=f"Resume_{name.replace(' ', '_')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
+                    else:
+                        st.error(f"Server Error: {res.text}")
+                except Exception as e:
+                    st.error(f"Connection Error: {e} - Đảm bảo FastAPI đang chạy (uvicorn src.api.main:app --reload)")
