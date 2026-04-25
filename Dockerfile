@@ -1,18 +1,20 @@
-FROM python:3.11-slim
+# 1. Sử dụng hệ điều hành Linux siêu nhẹ có cài sẵn Python 3.10
+FROM python:3.10-slim
 
-# Install system deps
-RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    poppler-utils \
-    libtesseract-dev \
-    libleptonica-dev \
-    && rm -rf /var/lib/apt/lists/*
-
+# 2. Tạo thư mục làm việc mặc định bên trong container
 WORKDIR /app
+
+# 3. Copy file requirements.txt vào trước để cài đặt thư viện
 COPY requirements.txt .
+
+# 4. Cài đặt các thư viện không lưu cache
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 5. Copy toàn bộ mã nguồn còn lại vào container
 COPY . .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# 6. Mở cổng 8501
+EXPOSE 8501
 
+# 7. Lệnh khởi chạy web khi container được bật
+CMD ["streamlit", "run", "src/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
