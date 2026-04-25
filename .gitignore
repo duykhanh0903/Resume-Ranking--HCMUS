@@ -5,6 +5,16 @@ venv/
 .venv/
 env/
 
+# Libraries & Heavy binaries
+vendor/
+*.dll
+*.pyd
+*.so
+
+
+# OS files
+.DS_Store
+Thumbs.db
 # =========================
 # 2. File rác và Cache của Python
 # =========================
