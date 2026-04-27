@@ -18,9 +18,10 @@ Thumbs.db
 # =========================
 # 2. File rác và Cache của Python
 # =========================
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 
 # =========================
 # 3. Dữ liệu
@@ -43,3 +44,24 @@ secrets.toml
 Thumbs.db
 /data
 /models
+
+# DVC
+.dvc/config.local
+.dvc/tmp/
+.dvc/cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+
+
