@@ -1,4 +1,7 @@
 [core]
-    remote = origin
+    remote = storage
 ['remote "origin"']
-    url = https://dagshub.com/MinhHCMUSsv/Resume-Ranking-Data.dvc
+    url = https://dagshub.com/MinhHCMUSSv/Resume-Ranking-Data
+['remote "storage"']
+    url = s3://dvc
+    endpointurl = https://dagshub.com/MinhHCMUSsv/Resume-Ranking-Data.s3

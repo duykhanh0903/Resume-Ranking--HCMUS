@@ -2,7 +2,6 @@ import re
 import json
 import ollama
 
-
 class ResumeExtractor:
     def __init__(self, model_name='llama3'):
         self.model_name = model_name
@@ -30,24 +29,36 @@ class ResumeExtractor:
         return best_match[0] if best_match[1] > 0.15 else 'unknown'
 
 
-    def _extract_by_regex(self, text):
-        """Dùng Regex lấy các thông tin có định dạng cố định (nhanh và chuẩn)"""
+    def _extract_by_regex(self, text: str, embedded_links: list = None) -> dict:
         email = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
-        # Regex cho số điện thoại (hỗ trợ nhiều định dạng)
-        phone = re.findall(r'(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,}', text)
-        # Tìm links LinkedIn, GitHub
-        links = re.findall(r'(?:https?://)?(?:www\.)?(?:linkedin\.com|github\.com|behance\.net|portfolio\S+)\S+', text)
-        
 
+        phone = re.findall(
+            r'(?<!\d)'
+            r'(?:\+?\d{1,3}[\s.-]?)?'
+            r'(?:\(\d{2,4}\)[\s.-]?)'
+            r'\d{3,4}[\s.-]?\d{3,4}'
+            r'|(?<!\d)'
+            r'(?:\+?\d{1,3}[\s.-]?)?'
+            r'\d{3,4}[\s.-]\d{3,4}[\s.-]\d{3,4}'
+            r'(?!\d)',
+            text
+        )
+
+        text_links = re.findall(
+            r'(?:https?://)?(?:www\.)?(?:linkedin\.com|github\.com|behance\.net|portfolio\S+)\S+',
+            text
+        )
+
+        all_links = list(set(text_links + (embedded_links or [])))
 
         return {
             "emails": list(set(email)),
-            "phones": list(set(phone)),
-            "links": list(set(links))
+            "phones": list(set(p.strip() for p in phone if len(re.sub(r'\D', '', p)) >= 9)),
+            "links":  all_links,
         }
 
-    def extract_structured_data(self, clean_text):
-        regex_info = self._extract_by_regex(clean_text)
+    def extract_structured_data(self, clean_text: str, embedded_links: list = None) -> dict:
+        regex_info = self._extract_by_regex(clean_text, embedded_links)
         
         prompt = f"""
         Role: Expert Resume Data Extractor.
