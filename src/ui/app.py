@@ -27,65 +27,6 @@ st.markdown("""
 # ==========================================
 # 1. SIDEBAR NAVIGATION
 # ==========================================
-# with st.sidebar:
-#     st.markdown("### 🧬 RecruitAI")
-#     st.caption("Enterprise Plan")
-#     st.markdown("---")
-
-#     pages = {
-#         "dashboard":         "Dashboard",
-#         "analyzer":          "Resume Analyzer",
-#         "ranking":           "Candidate Ranking",
-#         "job_search":        "Job Search",
-#         "resume_builder":    "Resume Builder",
-#         "standard_analyzer": "Standard Analyzer",
-#         "ethics":            "Analytics & Ethics",
-#     }
-
-#     for page_key, page_label in pages.items():
-#         is_active = st.session_state.current_page == page_key
-#         if ui.button(
-#             page_label,
-#             variant="secondary" if is_active else "ghost",
-#             key=f"nav_{page_key}"
-#         ):
-#             if not is_active:  # ← only rerun if actually changing page
-#                 st.session_state.current_page = page_key
-#                 st.rerun()
-    
-#     # Điều hướng trang
-#     if ui.button("Dashboard", variant="ghost" if st.session_state.current_page != "dashboard" else "secondary", key="nav_dash"):
-#         change_page("dashboard")
-#         st.rerun()
-
-#     if ui.button("Standard Analyzer", variant="ghost" if st.session_state.current_page != "standard_analyzer" else "secondary", key="nav_standard"):
-#         change_page("standard_analyzer")
-#         st.rerun()
-
-        
-#     if ui.button("Resume Analyzer", variant="ghost" if st.session_state.current_page != "analyzer" else "secondary", key="nav_analyzer"):
-#         change_page("analyzer")
-#         st.rerun()
-
-#     if ui.button("Candidate Ranking", variant="ghost" if st.session_state.current_page != "ranking" else "secondary", key="nav_ranking"):
-#         change_page("ranking")
-#         st.rerun()
-
-#     if ui.button("Job Search", variant="ghost" if st.session_state.current_page != "job_search" else "secondary", key="nav_jobsearch"):
-#         change_page("job_search")
-#         st.rerun()
-
-#     if ui.button("Resume Builder", variant="ghost" if st.session_state.current_page != "resume_builder" else "secondary", key="nav_builder"):
-#         change_page("resume_builder")
-#         st.rerun()
-        
-#     if ui.button("Analytics & Ethics", variant="ghost" if st.session_state.current_page != "ethics" else "secondary", key="nav_ethics"):
-#         change_page("ethics")
-#         st.rerun()
-        
-#     st.markdown("---")
-#     st.caption("SYSTEM")
-#     ui.button("Settings", variant="ghost", key="nav_settings")
 
 with st.sidebar:
     st.markdown("### 🧬 RecruitAI")
