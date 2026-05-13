@@ -77,7 +77,7 @@ class RecruitAIAgent:
         except Exception as e:
             return {"error": str(e)}
 
-# --- PHẦN TEST SỬA TẬN GỐC ---
+# --- PHẦN TEST ---
 if __name__ == "__main__":
     import asyncio
     from dotenv import load_dotenv
