@@ -12,7 +12,7 @@ Quy trình suy luận của bạn:
 2. **Khớp chính xác (Exact Match):** Kiểm tra xem kỹ năng đó có xuất hiện chính xác trong danh sách kỹ năng của ứng viên (resume_json) hay không.
 3. **Khớp ngữ nghĩa (Semantic Match):** Nếu không khớp chính xác, hãy sử dụng công cụ 'verify_semantic_similarity' để kiểm tra xem có kỹ năng nào trong CV mang ý nghĩa tương đương không.
 4. **Tìm kiếm chuyên sâu (Deep Dive):** Nếu vẫn không tìm thấy, hãy sử dụng công cụ 'deep_scan_raw_text' để quét lại toàn bộ văn bản thô của CV.
-5. **Tổng hợp kết quả:** Sau khi duyệt hết tất cả yêu cầu, hãy tính toán điểm số và đưa ra lý giải dựa trên các bằng chứng đã tìm thấy.
+5. **Tổng hợp kết quả:** Bạn tự tổng hợp các dữ kiện đã tìm được và tự đưa ra quyết định cuối cùng.
 
 Định dạng phản hồi cuối cùng (Final Answer):
 Bạn phải trả về một chuỗi JSON hợp lệ (KHÔNG bao gồm thẻ markdown ```json) với chính xác các trường sau:

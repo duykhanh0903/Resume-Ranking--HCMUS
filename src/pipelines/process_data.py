@@ -5,6 +5,7 @@ import os
 from groq import AsyncGroq
 from sklearn.model_selection import train_test_split
 from dotenv import load_dotenv
+from thefuzz import fuzz
 
 load_dotenv()
 
@@ -42,27 +43,49 @@ def flatten_dict_to_string(data_dict):
             parts.append(f"{clean_key}: {clean_val}")
     return " | ".join(parts) if parts else "No Keywords Extracted"
 
+def audit_extracted_phrases(extracted_dict, original_text, threshold=75):
+    """Lọc bỏ các cụm từ bị hallucination."""
+    if "error" in extracted_dict:
+        return extracted_dict
+    
+    audited_dict = {}
+    original_text_lower = str(original_text).lower()
+    
+    for key, phrases in extracted_dict.items():
+        if isinstance(phrases, list):
+            valid_phrases = []
+            for phrase in phrases:
+                if fuzz.partial_ratio(str(phrase).lower(), original_text_lower) >= threshold:
+                    valid_phrases.append(phrase)
+            audited_dict[key] = valid_phrases
+        else:
+            audited_dict[key] = phrases
+            
+    return audited_dict
+
 # ================= HÀM GỌI API & XỬ LÝ LÔ =================
 async def extract_keywords_async(text, doc_type, client, max_retries=5):
     if doc_type == "resume":
         system_msg = "You are an expert IT Recruiter. You must output your response in valid JSON format."
         user_msg = f"""
-        Extract key IT information from the following Candidate Resume.
-        STRICT RULES:
-        1. Extract ONLY maximum 15 HARD SKILLS (technical skills, tools, frameworks). Ignore soft skills.
-        2. Extract maximum 3 most relevant Job Titles.
-        3. Return EXACTLY in this JSON format: {{"skills": ["s1"], "job_titles": ["t1"]}}
+        Extract technical skills and their execution context from the Candidate Resume.
+        CRITICAL RULES:
+        1. DO NOT extract single words. Extract complete phrases showing Action + Skill + Context (e.g., "Developed scalable REST APIs using Python and FastAPI").
+        2. Each phrase MUST be between 10 to 30 words.
+        3. Extract maximum 10 phrases. DO NOT rephrase, use the EXACT phrasing from the source text.
+        4. Return EXACTLY in this JSON format: {{"skill_contexts": ["phrase 1", "phrase 2"]}}
 
         Resume text: {text}
         """
     else:
         system_msg = "You are an expert IT Recruiter. You must output your response in valid JSON format."
         user_msg = f"""
-        Extract key IT requirements from the Job Description.
-        STRICT RULES:
-        1. Extract ONLY maximum 15 HARD SKILLS (technical skills, tools, frameworks). Ignore soft skills.
-        2. Extract maximum 3 required Roles/Titles.
-        3. Return EXACTLY in this JSON format: {{"required_skills": ["s1"], "required_roles": ["r1"]}}
+        Extract key technical requirements and their context from the Job Description.
+        CRITICAL RULES:
+        1. DO NOT extract single words. Extract complete phrases showing Requirement + Skill + Context (e.g., "Must have 3 years of experience building backend systems with Node.js").
+        2. Each phrase MUST be between 10 to 30 words.
+        3. Extract maximum 10 phrases. DO NOT rephrase, use the EXACT phrasing from the source text.
+        4. Return EXACTLY in this JSON format: {{"required_skill_contexts": ["phrase 1", "phrase 2"]}}
 
         Job Description text: {text}
         """
@@ -122,6 +145,9 @@ async def process_single_row(row, client_resume, client_jd, sem):
             print(f"⏩ Đã bỏ qua ID {orig_id} do lỗi văn bản.")
             return None
 
+        resume_dict = audit_extracted_phrases(resume_dict, raw_resume, threshold=80)
+        jd_dict = audit_extracted_phrases(jd_dict, raw_jd, threshold=80)
+        
         cleaned_resume = flatten_dict_to_string(resume_dict)
         cleaned_jd = flatten_dict_to_string(jd_dict)
 

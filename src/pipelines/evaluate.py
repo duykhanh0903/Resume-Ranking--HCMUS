@@ -23,6 +23,7 @@ if __name__ == "__main__":
 
     print(f"Đang load mô hình Zero-shot (Pre-trained gốc): {BASE_MODEL_NAME}...")
     model_base = SentenceTransformer(BASE_MODEL_NAME)
+    model_base.max_seq_length = 512
 
     # ================= SO SÁNH TRỰC QUAN (10 MẪU) =================
     print("\n--- SO SÁNH NHÃN THỰC TẾ VÀ DỰ ĐOÁN (10 MẪU TEST ĐẦU TIÊN) ---")

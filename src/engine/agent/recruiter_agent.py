@@ -17,7 +17,7 @@ class RecruitAIAgent:
         # 1. Khởi tạo LLM
         self.llm = ChatGroq(
             temperature=0, 
-            model_name="llama-3.1-8b-instant", 
+            model_name="llama-3.3-70b-versatile", 
             groq_api_key=api_key
         )
         
