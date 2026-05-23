@@ -27,39 +27,6 @@ st.markdown("""
 # ==========================================
 # 1. SIDEBAR NAVIGATION
 # ==========================================
-# with st.sidebar:
-#     st.markdown("### 🧬 RecruitAI")
-#     st.caption("Enterprise Plan")
-#     st.markdown("---")
-
-#     pages = {
-#         "dashboard":         "Dashboard",
-#         "analyzer":          "Resume Analyzer",
-#         "standard_analyzer": "Standard Analyzer",
-#         "ranking":           "Candidate Ranking",
-#         "job_search":        "Job Search",
-#         "resume_builder":    "Resume Builder",
-#         "ethics":            "Analytics & Ethics",
-#     }
-
-#     for page_key, page_label in pages.items():
-#         is_active = st.session_state.current_page == page_key
-#         if ui.button(
-#             page_label,
-#             variant="secondary" if is_active else "ghost",
-#             key=f"nav_{page_key}"
-#         ):
-#             if not is_active:
-#                 st.session_state.current_page = page_key
-#                 st.rerun()
-
-#     st.markdown("---")
-#     st.caption("SYSTEM")
-#     ui.button("Settings", variant="ghost", key="nav_settings")
-
-# ==========================================
-# 1. SIDEBAR NAVIGATION
-# ==========================================
 with st.sidebar:
     st.markdown("### 🧬 RecruitAI")
     st.caption("Enterprise Plan")
@@ -120,6 +87,7 @@ if st.session_state.current_page == "analyzer":
 
     st.write("")
     uploaded_file = st.file_uploader("Drag and drop resume here (PDF, DOCX)", type=["pdf", "docx"])
+    run_ai_btn = st.button("🚀 Run AI Analysis (Test Mode)", type="primary", use_container_width=True)
     st.markdown("---")
 
     col_left, col_right = st.columns([4, 6], gap="large")
@@ -133,19 +101,64 @@ if st.session_state.current_page == "analyzer":
         st.markdown("🎓 **B.S. Interaction Design**<br>*University of California, Berkeley*", unsafe_allow_html=True)
 
     with col_right:
-        st.subheader("AI Reasoning 🧠")
-        score_col, text_col = st.columns([1, 3])
-        with score_col:
-            st.metric(label="Match Score", value="85%", delta="High Fit", delta_color="normal")
-        with text_col:
-            st.write("Highly qualified candidate with strong overlap in visual design and frontend knowledge. Past experience aligns perfectly.")
-            st.write("✅ Technical Fit &nbsp;&nbsp; ✅ Experience Level &nbsp;&nbsp; ❌ Domain Gap")
+        st.subheader("AI Agent Reasoning 🧠")
+        
+        # Nếu chưa bấm nút thì hiện thông báo hướng dẫn
+        if not run_ai_btn:
+            st.info("👈 Upload a resume and click 'Run AI Analysis' to let the Agent evaluate the candidate.")
+        else:
+            # KHI BẤM NÚT SẼ GỌI BACKEND
+            with st.spinner("🕵️ Agent is thinking, comparing semantics and deep-scanning text..."):
+                import requests
+                
+                # 1. Chuẩn bị Mock Data đẩy xuống Backend
+                payload = {
+                    "jd_json": {"required_skills": ["React", "TypeScript", "Python", "AWS", "Docker"]},
+                    "resume_json": {"skills": ["React", "Python", "Git", "Frontend Development"]},
+                    "raw_text": "I am a web developer. I have deployed multiple backend services on Amazon Web Services using EC2."
+                }
+                
+                try:
+                    # 2. Gửi request đến FastAPI
+                    res = requests.post("http://localhost:8000/api/v1/analyzer/analyze_ai", json=payload)
+                    
+                    if res.status_code == 200:
+                        data = res.json().get("analysis", {})
+                        
+                        # 3. Đổ kết quả thật từ Agent lên UI
+                        score_col, text_col = st.columns([1, 3])
+                        with score_col:
+                            # Đổi màu số điểm dựa trên độ cao
+                            score_val = data.get('match_score', 0)
+                            delta_color = "normal" if score_val >= 70 else "off"
+                            st.metric(label="Match Score", value=f"{score_val}%", delta="AI Calculated", delta_color=delta_color)
+                        
+                        with text_col:
+                            st.write(data.get("reasoning", "No reasoning provided."))
+                            
+                        st.markdown("#### Agent Verification Report")
+                        
+                        # In danh sách điểm mạnh đã kiểm chứng (Màu xanh)
+                        for strength in data.get("verified_strengths", []):
+                            st.success(f"**{strength}**")
+                            
+                        # In danh sách cảnh báo (Màu cam)
+                        for warning in data.get("warnings", []):
+                            st.warning(f"**{warning}**")
+                            
+                        # Tính năng sinh câu hỏi phỏng vấn (Nếu Agent có sinh ra)
+                        suggestions = data.get("interview_suggestions", [])
+                        if suggestions:
+                            with st.expander("💬 Interview Suggestions from AI", expanded=True):
+                                for idx, q in enumerate(suggestions):
+                                    st.markdown(f"{idx + 1}. {q}")
+                                    
+                    else:
+                        st.error(f"❌ Backend Error: {res.text}")
+                except requests.exceptions.ConnectionError:
+                    st.error("❌ Could not connect to the Backend API. Please ensure FastAPI is running on localhost:8000.")
 
-        # Dùng native st.success / st.warning / st.info thay vì HTML custom
-        st.success("**✔️ Verified:** Candidate has extensive experience building Design Systems which is a core requirement for this role.")
-        st.error("**⚠️ Warning:** Limited experience mentioned regarding User Research methodologies.")
-        st.success("**✔️ Verified:** Location match: Based in San Francisco.")
-
+    # Phần Calib Agent giữ nguyên
     st.markdown("---")
     st.subheader("Agent Calibration")
     st.write("Help the AI learn by providing feedback on its reasoning.")

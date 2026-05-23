@@ -24,11 +24,12 @@ def objective(trial):
     print(f"\n--- ĐANG CHẠY THỬ NGHIỆM THỨ {trial.number + 1} ---")
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 5e-5, log=True)
     batch_size = trial.suggest_categorical("batch_size", [16, 32])
-    epochs = trial.suggest_int("epochs", 3, 4)
+    epochs = trial.suggest_int("epochs", 3, 5)
 
     model = SentenceTransformer('all-MiniLM-L6-v2')
+    model.max_seq_length = 512
     train_dataloader = DataLoader(train_samples, shuffle=True, batch_size=batch_size)
-    train_loss = losses.CosineSimilarityLoss(model=model)
+    train_loss = losses.CoSENTLoss(model=model)
 
     model.fit(
         train_objectives=[(train_dataloader, train_loss)],

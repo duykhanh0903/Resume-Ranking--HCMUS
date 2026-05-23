@@ -21,14 +21,15 @@ if __name__ == "__main__":
     evaluator = evaluation.EmbeddingSimilarityEvaluator(val_sentences1, val_sentences2, val_labels, name='resume-val')
 
     model = SentenceTransformer('all-MiniLM-L6-v2')
+    model.max_seq_length = 512
     
     # SỬ DỤNG BỘ THAM SỐ TỐT NHẤT TỪ OPTUNA
-    BEST_BATCH_SIZE = 16
-    BEST_LR = 4.3263811050052926e-05
-    BEST_EPOCHS = 4
+    BEST_BATCH_SIZE = 32
+    BEST_LR = 3.472885132845913e-05
+    BEST_EPOCHS = 5
     
     train_dataloader = DataLoader(train_samples, shuffle=True, batch_size=BEST_BATCH_SIZE)
-    train_loss = losses.CosineSimilarityLoss(model=model)
+    train_loss = losses.CoSENTLoss(model=model)
 
     print(f"Đang bắt đầu Fine-tuning với LR={BEST_LR}, Batch={BEST_BATCH_SIZE}...")
     
