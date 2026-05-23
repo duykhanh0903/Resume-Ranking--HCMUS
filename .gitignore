@@ -40,8 +40,8 @@ secrets.toml
 # =========================
 # 5. File tạm thời của hệ thống
 # =========================
-src/data/
-src/models/
+data/
+models/
 **/__pycache__/
 
 # DVC
