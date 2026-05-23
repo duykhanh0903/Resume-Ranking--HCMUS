@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routers import analyzer
 from src.api.routers import jobsearch
 from src.api.routers import builder
+from src.api.routers import standard_analyzer 
 
 app = FastAPI(
     title="RecruitAI Backend API",
@@ -21,6 +22,7 @@ app.add_middleware(
 app.include_router(analyzer.router, prefix="/api/v1/analyzer", tags=["Resume Analysis"])
 app.include_router(jobsearch.router, prefix="/api/v1/jobsearch", tags=["Job Search"])
 app.include_router(builder.router, prefix="/api/v1/builder", tags=["Resume Builder"])
+app.include_router(standard_analyzer.router,  prefix="/api/v1/standard-analyzer", tags=["Standard Analysis"])
 
 @app.get("/")
 def health_check():
