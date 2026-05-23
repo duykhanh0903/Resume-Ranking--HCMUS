@@ -244,3 +244,5 @@ xxhash==3.6.0
 yarl==1.23.0
 zc.lockfile==4.0
 zstandard==0.25.0
+plotly==6.6.0
+supabase==2.15.0

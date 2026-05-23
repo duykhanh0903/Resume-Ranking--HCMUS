@@ -40,10 +40,9 @@ secrets.toml
 # =========================
 # 5. File tạm thời của hệ thống
 # =========================
-.DS_Store
-Thumbs.db
-/data
-/models
+src/data/
+src/models/
+**/__pycache__/
 
 # DVC
 .dvc/config.local
