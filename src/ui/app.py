@@ -183,49 +183,223 @@ if st.session_state.current_page == "analyzer":
 # TRANG 2: CANDIDATE RANKING
 # ------------------------------------------
 elif st.session_state.current_page == "ranking":
+    import sys, os
+
+    _root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+    from src.utils.auth import login, logout, is_logged_in, is_admin
+
+    st.markdown("---")
+    if is_logged_in():
+        u = st.session_state["auth_user"]
+        st.caption(f"👤 {u['username']}")
+        st.caption(f"Role: `{st.session_state.get('auth_role','viewer')}`")
+        if st.button("Đăng xuất", use_container_width=True, key="logout_btn"):
+            logout()
+            st.rerun()
+    else:
+        st.caption("Chưa đăng nhập")
+
     st.caption("RecruitAI > **Candidate Ranking**")
+    st.title("Candidate Ranking")
 
-    col_header1, col_header2 = st.columns([4, 1])
-    with col_header1:
-        st.title("Candidate Ranking")
-        st.write("Compare and rank applicants based on custom job role requirements")
-    with col_header2:
-        st.write("")
-        ui.button("🔍 New Ranking", variant="default", key="new_ranking_btn")
+    # ── GATE: chưa đăng nhập ──────────────────────────────────────
+    if not is_logged_in():
+        st.warning("🔒 Trang này yêu cầu đăng nhập với quyền **Admin**.")
+        st.markdown("---")
 
-    st.write("")
+        col = st.columns([1, 2, 1])[1]
+        with col:
+            st.markdown("##### Đăng nhập")
+            with st.form("login_form"):
+                username  = st.text_input("Tên đăng nhập", placeholder="admin")
+                password  = st.text_input("Mật khẩu", type="password", placeholder="••••••••")
+                submitted = st.form_submit_button(
+                    "Đăng nhập", use_container_width=True, type="primary"
+                )
 
-    # Mock Data
-    data = {
-        "ID": ["USR-9921", "USR-8842", "USR-7731", "USR-6610", "USR-5509", "USR-4422"],
-        "Role": ["Senior Frontend Engineer", "Product Designer", "Backend Developer", "Data Scientist", "DevOps Engineer", "UX Researcher"],
-        "Match Score": [94, 88, 82, 79, 75, 72],
-        "AI Summary": ["Expertise in React and system design, proven track record...", "Strong portfolio with focus on accessibility...", "Proficient in Go and distributed systems...", "Experience with LLMs and data pipelines...", "Strong Kubernetes and CI/CD background...", "Skilled in qualitative analysis and user interviews..."],
-        "Action": ["View Deep-Dive", "View Deep-Dive", "View Deep-Dive", "View Deep-Dive", "View Deep-Dive", "View Deep-Dive"]
-    }
-    df = pd.DataFrame(data)
+            if submitted:
+                if not username or not password:
+                    st.warning("Vui lòng nhập đầy đủ.")
+                else:
+                    with st.spinner("Đang xác thực..."):
+                        ok, msg = login(username, password)
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
-    # Dùng st.dataframe với column_config để tạo thanh Progress trực tiếp trong bảng
-    st.dataframe(
-        df,
-        column_config={
-            "ID": st.column_config.TextColumn("Anonymized ID", width="small"),
-            "Role": st.column_config.TextColumn("Role", width="medium"),
-            "Match Score": st.column_config.ProgressColumn(
-                "Match Score",
-                help="AI assigned match score",
-                format="%d%%",
-                min_value=0,
-                max_value=100,
-            ),
-            "AI Summary": st.column_config.TextColumn("AI Summary", width="large"),
-            "Action": st.column_config.TextColumn("Action", width="small")
-        },
-        hide_index=True,
-        use_container_width=True
-    )
+    # ── GATE: đã login nhưng không phải admin ────────────────────
+    elif not is_admin():
+        st.error("🔒 Bạn không có quyền truy cập. Chỉ **Admin** mới xem được trang này.")
+        u = st.session_state["auth_user"]
+        st.info(f"Tài khoản: `{u['username']}` — Role: `{st.session_state.get('auth_role','viewer')}`")
+        if st.button("Đăng xuất và thử lại", key="relogin_btn"):
+            logout()
+            st.rerun()
 
-    st.caption("Showing 1 to 6 of 128 results")
+    # ── NỘI DUNG RANKING (chỉ admin vào được) ────────────────────
+    else:
+        API = "http://localhost:8000/api/v1/ranking"
+
+        st.write("Compare and rank applicants based on ATS + AI scores.")
+        st.markdown("---")
+
+        # Sidebar weight controls
+        with st.sidebar:
+            st.markdown("---")
+            st.markdown("### ⚖️ Score Weights")
+            p1, p2, p3 = st.columns(3)
+            if p1.button("50/50", key="rk_5050"): st.session_state["rk_wats"] = 50
+            if p2.button("60/40", key="rk_6040"): st.session_state["rk_wats"] = 60
+            if p3.button("70/30", key="rk_7030"): st.session_state["rk_wats"] = 70
+            if "rk_wats" not in st.session_state: st.session_state["rk_wats"] = 50
+            w_ats = st.slider("ATS Weight (%)", 0, 100, step=5, key="rk_wats")
+            w_ai  = 100 - w_ats
+            st.markdown(f"**Final = ATS×{w_ats}% + AI×{w_ai}%**")
+
+        # Lấy danh sách roles
+        try:
+            roles_resp = requests.get(f"{API}/roles", timeout=5).json()
+            role_options = ["— All —"] + roles_resp.get("data", [])
+        except Exception:
+            role_options = ["— All —"]
+
+        # Filters
+        f1, f2, f3, f4 = st.columns([3, 2, 2, 2])
+        search     = f1.text_input("Search name / email", placeholder="Tìm kiếm...", key="rk_search")
+        role_sel   = f2.selectbox("Job Role",  role_options, key="rk_role")
+        status_sel = f3.selectbox("Status",
+                        ["— All —", "pending", "shortlisted", "rejected", "hired"],
+                        key="rk_status")
+        sort_sel   = f4.selectbox("Sort by",
+                        ["Final score", "ATS score", "AI score", "Name"],
+                        key="rk_sort")
+
+        sort_map = {
+            "Final score": "final_score",
+            "ATS score":   "ats_score",
+            "AI score":    "sbert_score",
+            "Name":        "name",
+        }
+
+        params = {"w_ats": w_ats, "sort_by": sort_map[sort_sel], "limit": 200}
+        if role_sel   != "— All —": params["job_role"] = role_sel
+        if status_sel != "— All —": params["status"]   = status_sel
+        if search.strip():          params["search"]   = search.strip()
+
+        try:
+            resp = requests.get(f"{API}/candidates", params=params, timeout=10)
+            resp.raise_for_status()
+            data  = resp.json()
+            rows  = data.get("data", [])
+            total = data.get("total", 0)
+        except Exception as e:
+            st.error(f"Không kết nối được Backend: {e}")
+            rows, total = [], 0
+
+        # Stats
+        all_ats = [float(r.get("ats_score") or 0) for r in rows]
+        avg_ats = round(sum(all_ats) / len(all_ats), 1) if all_ats else 0
+        n_short = sum(1 for r in rows if r.get("status") == "shortlisted")
+        n_hired = sum(1 for r in rows if r.get("status") == "hired")
+
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("👤 Candidates", total)
+        k2.metric("🔵 Avg ATS",    f"{avg_ats}%")
+        k3.metric("✅ Shortlisted", n_short)
+        k4.metric("🎉 Hired",       n_hired)
+        st.markdown("---")
+
+        if not rows:
+            st.info("Chưa có dữ liệu. Upload và phân tích CV trước.")
+        else:
+            STATUS_ICON = {
+                "pending":     "⏳",
+                "shortlisted": "✅",
+                "rejected":    "❌",
+                "hired":       "🎉",
+            }
+
+            table_rows = []
+            for i, r in enumerate(rows):
+                cand   = r.get("candidates") or {}
+                ai_raw = r.get("sbert_score")
+                ai_pct = round(float(ai_raw) * 100, 1) if ai_raw is not None else None
+                final  = r.get("_final", round(float(r.get("ats_score") or 0), 1))
+                table_rows.append({
+                    "#":           i + 1,
+                    "Name":        cand.get("full_name") or "—",
+                    "Email":       cand.get("email")     or "—",
+                    "Role":        r.get("job_role", ""),
+                    "🔵 ATS":      int(r.get("ats_score") or 0),
+                    "🟣 AI Score": int(ai_pct) if ai_pct is not None else None,
+                    "🏅 Final":    final,
+                    "Status":      STATUS_ICON.get(r.get("status", "pending"), "⏳")
+                                   + " " + (r.get("status", "pending")).capitalize(),
+                    "Exp (yr)":    cand.get("total_exp_years"),
+                    "_cmp_id":     r.get("id"),
+                })
+
+            import pandas as pd
+            df = pd.DataFrame(table_rows)
+
+            st.dataframe(
+                df.drop(columns=["_cmp_id"]),
+                column_config={
+                    "#":           st.column_config.NumberColumn(width="small"),
+                    "🔵 ATS":      st.column_config.ProgressColumn(
+                                       "🔵 ATS",    format="%d%%",   min_value=0, max_value=100),
+                    "🟣 AI Score": st.column_config.ProgressColumn(
+                                       "🟣 AI",     format="%d%%",   min_value=0, max_value=100),
+                    "🏅 Final":    st.column_config.ProgressColumn(
+                                       "🏅 Final",  format="%.1f%%", min_value=0, max_value=100),
+                },
+                hide_index=True,
+                use_container_width=True,
+                height=min(500, 60 + len(table_rows) * 38),
+            )
+            st.caption(
+                f"Showing {len(rows)}/{total} candidates  |  "
+                f"Final = ATS×{w_ats}% + AI×{w_ai}%"
+            )
+
+            # Update status
+            st.markdown("---")
+            with st.expander("✏️ Cập nhật trạng thái ứng viên"):
+                id_map = {
+                    f"#{r['#']} — {r['Name']} ({r['Role']})": r["_cmp_id"]
+                    for r in table_rows
+                }
+                u1, u2, u3 = st.columns([3, 2, 1])
+                sel_lbl    = u1.selectbox("Chọn ứng viên", list(id_map.keys()), key="rk_upd_cand")
+                new_status = u2.selectbox(
+                    "Trạng thái mới",
+                    ["pending", "shortlisted", "rejected", "hired"],
+                    key="rk_upd_status"
+                )
+                u3.write("")
+                u3.write("")
+                if u3.button("💾 Lưu", key="rk_upd_btn"):
+                    cmp_id = id_map[sel_lbl]
+                    try:
+                        res = requests.put(
+                            f"{API}/{cmp_id}/status",
+                            json={"status": new_status},
+                            timeout=5,
+                        )
+                        if res.status_code == 200:
+                            st.success(f"Đã cập nhật → **{new_status}**")
+                            st.rerun()
+                        else:
+                            st.error(f"Lỗi: {res.text}")
+                    except Exception as e:
+                        st.error(str(e))
+
+
 
 # ------------------------------------------
 # TRANG 3: ANALYTICS & ETHICS DASHBOARD

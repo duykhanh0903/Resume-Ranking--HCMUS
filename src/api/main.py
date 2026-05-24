@@ -4,6 +4,7 @@ from src.api.routers import analyzer
 from src.api.routers import jobsearch
 from src.api.routers import builder
 from src.api.routers import standard_analyzer 
+from src.api.routers import ranking
 
 app = FastAPI(
     title="RecruitAI Backend API",
@@ -19,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(ranking.router, prefix="/api/v1/ranking", tags=["Ranking"])
 app.include_router(analyzer.router, prefix="/api/v1/analyzer", tags=["Resume Analysis"])
 app.include_router(jobsearch.router, prefix="/api/v1/jobsearch", tags=["Job Search"])
 app.include_router(builder.router, prefix="/api/v1/builder", tags=["Resume Builder"])
