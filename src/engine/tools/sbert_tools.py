@@ -11,6 +11,34 @@ except Exception as e:
     print(f"⚠️ Không tìm thấy model fine-tune, dùng base model: {e}")
     sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
 
+def calculate_overall_match(jd_skills: list, resume_skills: list) -> float:
+    """
+    Tính điểm khớp tổng thể dựa trên Cosine Similarity của SBERT.
+    Đảm bảo điểm số được tính toán bằng toán học thay vì LLM tự sinh.
+    """
+    if not jd_skills or not resume_skills:
+        return 0.0
+        
+    total_score = 0.0
+    
+    # Mã hóa toàn bộ skill của ứng viên 1 lần duy nhất để tiết kiệm chi phí tính toán
+    resume_embs = sbert_model.encode(resume_skills)
+    
+    for req_skill in jd_skills:
+        req_emb = sbert_model.encode([req_skill])
+        similarities = cosine_similarity(req_emb, resume_embs)[0]
+        best_match_score = float(np.max(similarities))
+        
+        # Đặt ngưỡng (threshold), ví dụ > 0.6 mới tính là có điểm (cùng nhóm ngữ nghĩa)
+        if best_match_score > 0.6:
+            total_score += best_match_score
+            
+    # Tính trung bình điểm trên thang 100
+    avg_score = (total_score / len(jd_skills)) * 100
+    
+    # Đảm bảo điểm số không vượt quá 100 và làm tròn 1 chữ số thập phân
+    return round(min(avg_score, 100.0), 1)
+
 @tool
 def verify_semantic_similarity(query: str, context_list: list) -> dict:
     """

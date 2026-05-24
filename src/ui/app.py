@@ -73,92 +73,155 @@ if st.session_state.current_page != "standard_analyzer":
         del st.session_state["std_file"]
 
 # ------------------------------------------
-# TRANG 1: RESUME ANALYZER
+# TRANG 1: RESUME ANALYZER (UI đồng bộ với Standard Analyzer)
 # ------------------------------------------
 if st.session_state.current_page == "analyzer":
+    import requests
+    
     st.caption("RecruitAI > **Resume Analyzer**")
 
-    header_col1, header_col2 = st.columns([3, 1])
-    with header_col1:
-        st.title("Resume Analyzer")
-    with header_col2:
-        jd_options = ["Senior Product Designer", "Frontend Engineer (React)", "Backend Developer (Python)"]
-        selected_jd = st.selectbox("Job Description", jd_options, label_visibility="collapsed")
+    # Khởi tạo session state để lưu trữ kết quả phân tích
+    if "ai_analysis_result" not in st.session_state:
+        st.session_state.ai_analysis_result = None
 
-    st.write("")
-    uploaded_file = st.file_uploader("Drag and drop resume here (PDF, DOCX)", type=["pdf", "docx"])
-    run_ai_btn = st.button("🚀 Run AI Analysis (Test Mode)", type="primary", use_container_width=True)
+    st.title("Resume Analyzer")
+    st.write("AI Agent evaluation with SBERT semantic matching.")
     st.markdown("---")
 
-    col_left, col_right = st.columns([4, 6], gap="large")
+    # ── Job roles từ API ────────────────────────────────────
+    @st.cache_data(ttl=3600)
+    def fetch_job_roles_for_ai():
+        # Gọi chung endpoint lấy danh sách Job Roles với Standard Analyzer
+        res = requests.get("http://localhost:8000/api/v1/standard-analyzer/job-roles", timeout=10)
+        res.raise_for_status()
+        return res.json()["data"]
 
+    try:
+        job_roles_map = fetch_job_roles_for_ai()
+    except Exception:
+        st.error("Không kết nối được Backend. Chạy: uvicorn src.api.main:app --reload")
+        st.stop()
+
+    all_categories = list(job_roles_map.keys())
+
+    # ── Giao diện 3 cột: Upload | Category | Role ─────────────
+    col_file, col_cat, col_role = st.columns([3, 2, 2])
+
+    with col_file:
+        uploaded_file = st.file_uploader(
+            "Upload resume", type=["pdf", "docx"],
+            label_visibility="collapsed",
+            key="ai_uploaded_file" # Đổi key để không bị trùng với Standard Analyzer
+        )
+
+    with col_cat:
+        selected_cat = st.selectbox("Category", all_categories, key="ai_cat")
+
+    with col_role:
+        role_options  = job_roles_map[selected_cat]
+        selected_role = st.selectbox("Job Role", role_options, key="ai_role")
+
+    run_ai_btn = st.button(
+        "🚀 Run AI Analysis", type="primary", use_container_width=True,
+        disabled=(uploaded_file is None) # Nút chỉ sáng lên khi đã có file
+    )
+    st.markdown("---")
+
+    # =========================================================
+    # XỬ LÝ LOGIC GỌI API 
+    # =========================================================
+    if run_ai_btn and uploaded_file:
+        with st.spinner("🕵️ Agent is thinking, parsing resume, and running SBERT matching..."):
+            file_bytes = uploaded_file.getvalue()
+            files = {"resume_file": (uploaded_file.name, file_bytes, uploaded_file.type)}
+            
+            data = {
+                "job_category": selected_cat, 
+                "job_role": selected_role
+            }
+            
+            try:
+                res = requests.post("http://localhost:8000/api/v1/analyzer/analyze_ai", data=data, files=files)
+                if res.status_code == 200:
+                    st.session_state.ai_analysis_result = res.json()
+                else:
+                    st.error(f"❌ Backend Error: {res.text}")
+            except requests.exceptions.ConnectionError:
+                st.error("❌ Could not connect to the Backend API. Ensure FastAPI is running.")
+
+    # =========================================================
+    # RENDER GIAO DIỆN PHÂN TÍCH DỰA TRÊN STATE (Phần này giữ nguyên)
+    # =========================================================
+    col_left, col_right = st.columns([4, 6], gap="large")
+    result_data = st.session_state.ai_analysis_result
+
+    # --- CỘT TRÁI: HIỂN THỊ PROFILE ---
     with col_left:
         st.subheader("Extracted Profile 👤")
-        st.markdown("<p class='profile-name'>Alex Rivera</p><p class='profile-sub'>6+ Years Experience • San Francisco, CA</p>", unsafe_allow_html=True)
-        st.markdown("**Technical Skills**")
-        ui.badges(badge_list=[("UI/UX Design", "secondary"), ("Figma", "secondary"), ("React", "secondary"), ("Tailwind CSS", "secondary")], key="skills_badges")
-        st.markdown("<br>**Education**", unsafe_allow_html=True)
-        st.markdown("🎓 **B.S. Interaction Design**<br>*University of California, Berkeley*", unsafe_allow_html=True)
+        
+        if not result_data:
+            st.info("No profile extracted yet. Please run the analysis.")
+        else:
+            profile = result_data.get("extracted_profile", {})
+            
+            full_name = profile.get("full_name") or "Unknown Candidate"
+            exp_years = profile.get("total_exp_years") or 0
+            location = profile.get("contact", {}).get("address") or "Location N/A"
+            
+            st.markdown(f"<p class='profile-name'>{full_name}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p class='profile-sub'>{exp_years} Years Experience • {location}</p>", unsafe_allow_html=True)
+            
+            tech_skills = profile.get("skills", {}).get("technical", [])
+            if tech_skills:
+                st.markdown("**Technical Skills**")
+                ui.badges(badge_list=[(s, "secondary") for s in tech_skills[:10]], key="ai_skills_badges")
+            
+            education_list = profile.get("education", [])
+            if education_list:
+                st.markdown("<br>**Education**", unsafe_allow_html=True)
+                for edu in education_list[:2]:
+                    degree = edu.get("degree") or ""
+                    field = edu.get("field") or ""
+                    school = edu.get("institution") or "Unknown Institution"
+                    year = edu.get("graduation_year") or ""
+                    
+                    deg_str = f"{degree} {field}".strip() or "Academic Degree"
+                    st.markdown(f"🎓 **{deg_str}**<br>*{school} ({year})*", unsafe_allow_html=True)
 
+    # --- CỘT PHẢI: HIỂN THỊ AGENT REASONING ---
     with col_right:
         st.subheader("AI Agent Reasoning 🧠")
         
-        # Nếu chưa bấm nút thì hiện thông báo hướng dẫn
-        if not run_ai_btn:
+        if not result_data:
             st.info("👈 Upload a resume and click 'Run AI Analysis' to let the Agent evaluate the candidate.")
         else:
-            # KHI BẤM NÚT SẼ GỌI BACKEND
-            with st.spinner("🕵️ Agent is thinking, comparing semantics and deep-scanning text..."):
-                import requests
+            data_ai = result_data.get("analysis", {})
+            
+            score_col, text_col = st.columns([1, 3])
+            with score_col:
+                score_val = data_ai.get('match_score', 0)
+                delta_color = "normal" if score_val >= 70 else "off"
+                st.metric(label="Match Score", value=f"{score_val}%", delta="SBERT Calculated", delta_color=delta_color)
+            
+            with text_col:
+                st.write(data_ai.get("reasoning", "No analysis reasoning provided."))
                 
-                # 1. Chuẩn bị Mock Data đẩy xuống Backend
-                payload = {
-                    "jd_json": {"required_skills": ["React", "TypeScript", "Python", "AWS", "Docker"]},
-                    "resume_json": {"skills": ["React", "Python", "Git", "Frontend Development"]},
-                    "raw_text": "I am a web developer. I have deployed multiple backend services on Amazon Web Services using EC2."
-                }
+            st.markdown("#### Agent Verification Report")
+            for strength in data_ai.get("verified_strengths", []):
+                st.success(f"**{strength}**")
                 
-                try:
-                    # 2. Gửi request đến FastAPI
-                    res = requests.post("http://localhost:8000/api/v1/analyzer/analyze_ai", json=payload)
-                    
-                    if res.status_code == 200:
-                        data = res.json().get("analysis", {})
-                        
-                        # 3. Đổ kết quả thật từ Agent lên UI
-                        score_col, text_col = st.columns([1, 3])
-                        with score_col:
-                            # Đổi màu số điểm dựa trên độ cao
-                            score_val = data.get('match_score', 0)
-                            delta_color = "normal" if score_val >= 70 else "off"
-                            st.metric(label="Match Score", value=f"{score_val}%", delta="AI Calculated", delta_color=delta_color)
-                        
-                        with text_col:
-                            st.write(data.get("reasoning", "No reasoning provided."))
-                            
-                        st.markdown("#### Agent Verification Report")
-                        
-                        # In danh sách điểm mạnh đã kiểm chứng (Màu xanh)
-                        for strength in data.get("verified_strengths", []):
-                            st.success(f"**{strength}**")
-                            
-                        # In danh sách cảnh báo (Màu cam)
-                        for warning in data.get("warnings", []):
-                            st.warning(f"**{warning}**")
-                            
-                        # Tính năng sinh câu hỏi phỏng vấn (Nếu Agent có sinh ra)
-                        suggestions = data.get("interview_suggestions", [])
-                        if suggestions:
-                            with st.expander("💬 Interview Suggestions from AI", expanded=True):
-                                for idx, q in enumerate(suggestions):
-                                    st.markdown(f"{idx + 1}. {q}")
-                                    
-                    else:
-                        st.error(f"❌ Backend Error: {res.text}")
-                except requests.exceptions.ConnectionError:
-                    st.error("❌ Could not connect to the Backend API. Please ensure FastAPI is running on localhost:8000.")
+            for warning in data_ai.get("warnings", []):
+                st.warning(f"**{warning}**")
+                
+            suggestions = data_ai.get("interview_suggestions", [])
+            if suggestions:
+                with st.expander("💬 Interview Suggestions from AI", expanded=True):
+                    for idx, q in enumerate(suggestions):
+                        st.markdown(f"{idx + 1}. {q}")
 
-    # Phần Calib Agent giữ nguyên
+    # =========================================================
+    # PHẦN CALIBRATION (AGENT FEEDBACK)
+    # =========================================================
     st.markdown("---")
     st.subheader("Agent Calibration")
     st.write("Help the AI learn by providing feedback on its reasoning.")
