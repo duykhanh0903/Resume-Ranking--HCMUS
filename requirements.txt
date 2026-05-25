@@ -23,7 +23,7 @@ billiard==4.2.4
 blinker==1.9.0
 boto3==1.42.69
 botocore==1.42.69
-cachetools==7.0.5
+cachetools<7.0,>=5.5
 celery==5.6.3
 certifi==2026.2.25
 cffi==2.0.0
@@ -238,11 +238,12 @@ voluptuous==0.16.0
 watchdog==6.0.0
 watchfiles==1.1.1
 wcwidth==0.6.0
-websockets==16.0
+websockets
 wheel==0.46.3
 xxhash==3.6.0
 yarl==1.23.0
 zc.lockfile==4.0
 zstandard==0.25.0
 plotly==6.6.0
-supabase==2.15.0
+supabase
+streamlit
