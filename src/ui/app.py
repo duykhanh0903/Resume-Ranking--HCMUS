@@ -73,7 +73,7 @@ if st.session_state.current_page != "standard_analyzer":
         del st.session_state["std_file"]
 
 # ------------------------------------------
-# TRANG 1: RESUME ANALYZER (UI đồng bộ với Standard Analyzer)
+# TRANG 1: RESUME ANALYZER
 # ------------------------------------------
 if st.session_state.current_page == "analyzer":
     import requests
@@ -150,10 +150,14 @@ if st.session_state.current_page == "analyzer":
                 st.error("❌ Could not connect to the Backend API. Ensure FastAPI is running.")
 
     # =========================================================
-    # RENDER GIAO DIỆN PHÂN TÍCH DỰA TRÊN STATE (Phần này giữ nguyên)
+    # RENDER GIAO DIỆN PHÂN TÍCH DỰA TRÊN STATE
     # =========================================================
     col_left, col_right = st.columns([4, 6], gap="large")
     result_data = st.session_state.ai_analysis_result
+
+    if result_data:
+        st.session_state["last_candidate_id"] = result_data.get("candidate_id")
+        st.session_state["last_analysis_id"] = result_data.get("analysis_id")
 
     # --- CỘT TRÁI: HIỂN THỊ PROFILE ---
     with col_left:
@@ -200,8 +204,25 @@ if st.session_state.current_page == "analyzer":
             score_col, text_col = st.columns([1, 3])
             with score_col:
                 score_val = data_ai.get('match_score', 0)
-                delta_color = "normal" if score_val >= 70 else "off"
-                st.metric(label="Match Score", value=f"{score_val}%", delta="SBERT Calculated", delta_color=delta_color)
+                
+                # Phân loại nhãn và màu sắc tự động dựa trên dải điểm hiệu chuẩn
+                if score_val >= 75.0:
+                    fit_label = "Good Fit"
+                    d_color = "normal"   # Màu Xanh lá
+                elif score_val >= 50.0:
+                    fit_label = "Potential Fit"
+                    d_color = "off"      # Màu Xám trung tính
+                else:
+                    fit_label = "No Fit"
+                    d_color = "inverse"  # Màu Đỏ cảnh báo
+                
+                st.metric(
+                    label="Match Score", 
+                    value=f"{score_val}%", 
+                    delta=fit_label, 
+                    delta_color=d_color,
+                    help="Calculated by fine-tuned SBERT model" # Thêm chú thích nhỏ khi di chuột vào
+                )
             
             with text_col:
                 st.write(data_ai.get("reasoning", "No analysis reasoning provided."))
@@ -226,21 +247,62 @@ if st.session_state.current_page == "analyzer":
     st.subheader("Agent Calibration")
     st.write("Help the AI learn by providing feedback on its reasoning.")
 
+    candidate_id = st.session_state.get("last_candidate_id")
+    analysis_id  = st.session_state.get("last_analysis_id")
+
+    ai_score_val = 0
+    if result_data and "analysis" in result_data:
+        ai_score_val = result_data["analysis"].get("match_score", 0)
+
     calib_col1, calib_col2 = st.columns([2, 8])
     with calib_col1:
         st.write("Do you agree?")
         vote_col1, vote_col2 = st.columns(2)
         with vote_col1:
-            ui.button("👍 Yes", variant="outline", key="vote_yes")
+            # Lưu trạng thái "up" khi bấm Yes
+            if ui.button("👍 Yes", variant="outline", key="ai_vote_yes"):
+                st.session_state["_ai_vote"] = "up"
+                st.toast("👍 Vote recorded!")
         with vote_col2:
-            ui.button("👎 No", variant="outline", key="vote_no")
+            # Lưu trạng thái "down" khi bấm No
+            if ui.button("👎 No", variant="outline", key="ai_vote_no"):
+                st.session_state["_ai_vote"] = "down"
+                st.toast("👎 Vote recorded!")
     with calib_col2:
-        feedback_text = st.text_area("Add override notes or feedback on the AI's logic...", label_visibility="collapsed")
+        feedback_text = st.text_area(
+            "Add override notes or feedback on the AI's logic...", 
+            label_visibility="collapsed",
+            key="ai_feedback_input"
+        )
 
     col_empty, col_btn = st.columns([8, 2])
     with col_btn:
-        if ui.button("Submit Feedback", variant="default", key="submit_fb"):
-            st.toast("Feedback saved!")
+        if ui.button("Submit Feedback", variant="default", key="ai_submit_fb"):
+            if not candidate_id:
+                st.warning("⚠️ No candidate in session. Run analysis first.")
+            else:
+                try:
+                    import requests
+                    fb_response = requests.post(
+                        "http://localhost:8000/api/v1/standard-analyzer/feedback",
+                        json={
+                            "candidate_id": candidate_id,
+                            "analysis_id":  analysis_id,
+                            "vote":         st.session_state.get("_ai_vote", "neutral"),
+                            "notes":        feedback_text.strip() or None,
+                            "ai_score":     float(ai_score_val),
+                            "agreed":       st.session_state.get("_ai_vote") == "up",
+                        },
+                        timeout=10,
+                    )
+                    
+                    if fb_response.status_code == 200:
+                        st.toast("✅ Feedback saved to Database!")
+                        st.session_state.pop("_ai_vote", None) 
+                    else:
+                        st.error(f"Feedback error: {fb_response.text}")
+                except Exception as fb_err:
+                    st.error(f"Could not save feedback: {fb_err}")
 
 # ------------------------------------------
 # TRANG 2: CANDIDATE RANKING
@@ -1656,178 +1718,178 @@ elif st.session_state.current_page == "standard_analyzer":
                 except requests.exceptions.Timeout:
                     st.error("Request timeout (>120s). Ollama có thể đang bận.")
 
-        # ── Render kết quả ──────────────────────────────────────
-        result = st.session_state.get("std_analysis")
-        if result:
-            # ✅ Chỉ một block if result — lưu session rồi render luôn
-            st.session_state["last_candidate_id"] = result.get("candidate_id")
-            st.session_state["last_analysis_id"]  = result.get("analysis_id")
+    # ── Render kết quả ──────────────────────────────────────
+    result = st.session_state.get("std_analysis")
+    if result:
+        # ✅ Chỉ một block if result — lưu session rồi render luôn
+        st.session_state["last_candidate_id"] = result.get("candidate_id")
+        st.session_state["last_analysis_id"]  = result.get("analysis_id")
 
-            structured     = result["structured"]
-            scores         = result["scores"]
-            suggestions    = result["suggestions"]
-            role           = result["role"]
-            embedded_links = result.get("embedded_links", [])
+        structured     = result["structured"]
+        scores         = result["scores"]
+        suggestions    = result["suggestions"]
+        role           = result["role"]
+        embedded_links = result.get("embedded_links", [])
 
-            st.markdown(f"### Results — **{role}**")
-            st.markdown("---")
+        st.markdown(f"### Results — **{role}**")
+        st.markdown("---")
 
-            col_left, col_right = st.columns([4, 6], gap="large")
+        col_left, col_right = st.columns([4, 6], gap="large")
 
-            with col_left:
-                st.subheader("Extracted Profile 👤")
+        with col_left:
+            st.subheader("Extracted Profile 👤")
 
-                st.markdown(f"**{structured.get('full_name', 'Unknown')}**")
-                exp_years = structured.get("total_exp_years")
-                if exp_years:
-                    st.caption(f"{exp_years} years experience")
+            st.markdown(f"**{structured.get('full_name', 'Unknown')}**")
+            exp_years = structured.get("total_exp_years")
+            if exp_years:
+                st.caption(f"{exp_years} years experience")
 
-                summary = structured.get("summary", "") or ""
-                if summary:
-                    st.info(summary[:200] + ("…" if len(summary) > 200 else ""))
+            summary = structured.get("summary", "") or ""
+            if summary:
+                st.info(summary[:200] + ("…" if len(summary) > 200 else ""))
 
-                contact   = structured.get("contact", {}) or {}
-                llm_links = contact.get("links", []) or []
-                all_links = list(set(llm_links + embedded_links))
+            contact   = structured.get("contact", {}) or {}
+            llm_links = contact.get("links", []) or []
+            all_links = list(set(llm_links + embedded_links))
 
-                if contact.get("email") or contact.get("phone") or all_links:
-                    st.markdown("**Contact**")
-                    if contact.get("email"):
-                        st.markdown(f"✉️ {contact['email']}")
-                    if contact.get("phone"):
-                        st.markdown(f"📞 {contact['phone']}")
-                    for link in all_links:
-                        if "linkedin" in link.lower():
-                            st.markdown(f"🔗 [LinkedIn]({link})")
-                        elif "github" in link.lower():
-                            st.markdown(f"🐙 [GitHub]({link})")
-                        elif "behance" in link.lower():
-                            st.markdown(f"🎨 [Behance]({link})")
-                        else:
-                            st.markdown(f"🌐 [{link}]({link})")
-
-                tech = structured.get("skills", {}).get("technical", []) or []
-                soft = structured.get("skills", {}).get("soft", [])     or []
-                if tech:
-                    st.markdown("**Technical Skills**")
-                    ui.badges([(s, "secondary") for s in tech[:10]], key="sa_tech")
-                if soft:
-                    st.markdown("**Soft Skills**")
-                    ui.badges([(s, "outline") for s in soft[:6]], key="sa_soft")
-
-                education = structured.get("education", []) or []
-                if education:
-                    st.markdown("**Education**")
-                    for edu in education:
-                        st.markdown(
-                            f"🎓 **{edu.get('degree','') or ''} {edu.get('field','') or ''}**"
-                            f" — {edu.get('institution','') or ''} {edu.get('graduation_year','') or ''}"
-                        )
-
-                experience = structured.get("experience", []) or []
-                if experience:
-                    st.markdown("**Experience**")
-                    for exp in experience[:3]:
-                        st.markdown(
-                            f"💼 **{exp.get('role','') or ''}** @ {exp.get('company','') or ''}  \n"
-                            f"_{exp.get('period','') or ''}_"
-                        )
-
-            with col_right:
-                st.subheader("ATS Score Breakdown 📊")
-
-                ats = scores.get("ats_score", 0)
-                st.metric("Overall ATS Score", f"{ats} / 100")
-                st.progress(ats / 100)
-                st.markdown("")
-
-                s1, s2, s3 = st.columns(3)
-                s1.metric("Skills",     int(scores.get("skills",     0)))
-                s2.metric("Experience", int(scores.get("experience", 0)))
-                s3.metric("Format",     int(scores.get("format",     0)))
-                s1.metric("Contact",    int(scores.get("contact",    0)))
-                s2.metric("Education",  int(scores.get("education",  0)))
-                s3.metric("Summary",    int(scores.get("summary",    0)))
-
-                st.markdown("---")
-                st.subheader("Suggestions ✏️")
-
-                labels = {
-                    "contact_suggestions":    "📇 Contact",
-                    "summary_suggestions":    "📝 Summary",
-                    "skills_suggestions":     "🛠️ Skills",
-                    "experience_suggestions": "💼 Experience",
-                    "education_suggestions":  "🎓 Education",
-                    "format_suggestions":     "📐 Formatting",
-                }
-                any_msg = False
-                for key, label in labels.items():
-                    msgs = suggestions.get(key, [])
-                    if msgs:
-                        any_msg = True
-                        with st.expander(f"{label} ({len(msgs)})", expanded=True):
-                            for msg in msgs:
-                                st.warning(msg)
-
-                if not any_msg:
-                    st.success("✅ Resume is well-optimized for this role!")
-
-                with st.expander("🔍 Raw extracted JSON"):
-                    st.json(structured)
-
-            # ── Agent Calibration ───────────────────────────────
-            st.markdown("---")
-            st.subheader("Agent Calibration")
-            st.write("Help the AI learn by providing feedback on its reasoning.")
-
-            candidate_id = st.session_state.get("last_candidate_id")
-            analysis_id  = st.session_state.get("last_analysis_id")
-
-            calib_col1, calib_col2 = st.columns([2, 8])
-
-            with calib_col1:
-                st.write("Do you agree?")
-                vote_col1, vote_col2 = st.columns(2)
-                with vote_col1:
-                    if ui.button("👍 Yes", variant="outline", key="vote_yes"):
-                        st.session_state["_vote"] = "up"
-                        st.toast("👍 Vote recorded!")
-                with vote_col2:
-                    if ui.button("👎 No", variant="outline", key="vote_no"):
-                        st.session_state["_vote"] = "down"
-                        st.toast("👎 Vote recorded!")
-
-            with calib_col2:
-                feedback_text = st.text_area(
-                    "Add override notes or feedback on the AI's logic…",
-                    label_visibility="collapsed",
-                    key="std_feedback_text"
-                )
-
-            col_empty, col_btn = st.columns([8, 2])
-            with col_btn:
-                if ui.button("Submit Feedback", variant="default", key="submit_fb"):
-                    if not candidate_id:
-                        st.warning("⚠️ No candidate in session. Run analysis first.")
+            if contact.get("email") or contact.get("phone") or all_links:
+                st.markdown("**Contact**")
+                if contact.get("email"):
+                    st.markdown(f"✉️ {contact['email']}")
+                if contact.get("phone"):
+                    st.markdown(f"📞 {contact['phone']}")
+                for link in all_links:
+                    if "linkedin" in link.lower():
+                        st.markdown(f"🔗 [LinkedIn]({link})")
+                    elif "github" in link.lower():
+                        st.markdown(f"🐙 [GitHub]({link})")
+                    elif "behance" in link.lower():
+                        st.markdown(f"🎨 [Behance]({link})")
                     else:
-                        # ✅ Gọi API thay vì import Supabase trực tiếp
-                        try:
-                            fb_response = requests.post(
-                                f"{API_BASE}/feedback",
-                                json={
-                                    "candidate_id": candidate_id,
-                                    "analysis_id":  analysis_id,
-                                    "vote":         st.session_state.get("_vote", "neutral"),
-                                    "notes":        feedback_text.strip() or None,
-                                    "ai_score":     float(scores.get("ats_score") or 0),
-                                    "agreed":       st.session_state.get("_vote") == "up",
-                                },
-                                timeout=10,
-                            )
-                            if fb_response.status_code == 200:
-                                st.toast("✅ Feedback saved!")
-                                st.session_state.pop("_vote", None)
-                            else:
-                                st.error(f"Feedback error: {fb_response.text}")
-                        except Exception as fb_err:
-                            st.error(f"Could not save feedback: {fb_err}")
+                        st.markdown(f"🌐 [{link}]({link})")
+
+            tech = structured.get("skills", {}).get("technical", []) or []
+            soft = structured.get("skills", {}).get("soft", [])     or []
+            if tech:
+                st.markdown("**Technical Skills**")
+                ui.badges([(s, "secondary") for s in tech[:10]], key="sa_tech")
+            if soft:
+                st.markdown("**Soft Skills**")
+                ui.badges([(s, "outline") for s in soft[:6]], key="sa_soft")
+
+            education = structured.get("education", []) or []
+            if education:
+                st.markdown("**Education**")
+                for edu in education:
+                    st.markdown(
+                        f"🎓 **{edu.get('degree','') or ''} {edu.get('field','') or ''}**"
+                        f" — {edu.get('institution','') or ''} {edu.get('graduation_year','') or ''}"
+                    )
+
+            experience = structured.get("experience", []) or []
+            if experience:
+                st.markdown("**Experience**")
+                for exp in experience[:3]:
+                    st.markdown(
+                        f"💼 **{exp.get('role','') or ''}** @ {exp.get('company','') or ''}  \n"
+                        f"_{exp.get('period','') or ''}_"
+                    )
+
+        with col_right:
+            st.subheader("ATS Score Breakdown 📊")
+
+            ats = scores.get("ats_score", 0)
+            st.metric("Overall ATS Score", f"{ats} / 100")
+            st.progress(ats / 100)
+            st.markdown("")
+
+            s1, s2, s3 = st.columns(3)
+            s1.metric("Skills",     int(scores.get("skills",     0)))
+            s2.metric("Experience", int(scores.get("experience", 0)))
+            s3.metric("Format",     int(scores.get("format",     0)))
+            s1.metric("Contact",    int(scores.get("contact",    0)))
+            s2.metric("Education",  int(scores.get("education",  0)))
+            s3.metric("Summary",    int(scores.get("summary",    0)))
+
+            st.markdown("---")
+            st.subheader("Suggestions ✏️")
+
+            labels = {
+                "contact_suggestions":    "📇 Contact",
+                "summary_suggestions":    "📝 Summary",
+                "skills_suggestions":     "🛠️ Skills",
+                "experience_suggestions": "💼 Experience",
+                "education_suggestions":  "🎓 Education",
+                "format_suggestions":     "📐 Formatting",
+            }
+            any_msg = False
+            for key, label in labels.items():
+                msgs = suggestions.get(key, [])
+                if msgs:
+                    any_msg = True
+                    with st.expander(f"{label} ({len(msgs)})", expanded=True):
+                        for msg in msgs:
+                            st.warning(msg)
+
+            if not any_msg:
+                st.success("✅ Resume is well-optimized for this role!")
+
+            with st.expander("🔍 Raw extracted JSON"):
+                st.json(structured)
+
+        # ── Agent Calibration ───────────────────────────────
+        st.markdown("---")
+        st.subheader("Agent Calibration")
+        st.write("Help the AI learn by providing feedback on its reasoning.")
+
+        candidate_id = st.session_state.get("last_candidate_id")
+        analysis_id  = st.session_state.get("last_analysis_id")
+
+        calib_col1, calib_col2 = st.columns([2, 8])
+
+        with calib_col1:
+            st.write("Do you agree?")
+            vote_col1, vote_col2 = st.columns(2)
+            with vote_col1:
+                if ui.button("👍 Yes", variant="outline", key="vote_yes"):
+                    st.session_state["_vote"] = "up"
+                    st.toast("👍 Vote recorded!")
+            with vote_col2:
+                if ui.button("👎 No", variant="outline", key="vote_no"):
+                    st.session_state["_vote"] = "down"
+                    st.toast("👎 Vote recorded!")
+
+        with calib_col2:
+            feedback_text = st.text_area(
+                "Add override notes or feedback on the AI's logic…",
+                label_visibility="collapsed",
+                key="std_feedback_text"
+            )
+
+        col_empty, col_btn = st.columns([8, 2])
+        with col_btn:
+            if ui.button("Submit Feedback", variant="default", key="submit_fb"):
+                if not candidate_id:
+                    st.warning("⚠️ No candidate in session. Run analysis first.")
+                else:
+                    # ✅ Gọi API thay vì import Supabase trực tiếp
+                    try:
+                        fb_response = requests.post(
+                            f"{API_BASE}/feedback",
+                            json={
+                                "candidate_id": candidate_id,
+                                "analysis_id":  analysis_id,
+                                "vote":         st.session_state.get("_vote", "neutral"),
+                                "notes":        feedback_text.strip() or None,
+                                "ai_score":     float(scores.get("ats_score") or 0),
+                                "agreed":       st.session_state.get("_vote") == "up",
+                            },
+                            timeout=10,
+                        )
+                        if fb_response.status_code == 200:
+                            st.toast("✅ Feedback saved!")
+                            st.session_state.pop("_vote", None)
+                        else:
+                            st.error(f"Feedback error: {fb_response.text}")
+                    except Exception as fb_err:
+                        st.error(f"Could not save feedback: {fb_err}")

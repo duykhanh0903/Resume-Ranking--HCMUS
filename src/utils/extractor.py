@@ -131,5 +131,34 @@ class ResumeExtractor:
         except Exception as e:
             print(f"Lỗi Extraction: {e}")
             return None
+        
+    def extract_narrative_text(self, clean_text: str) -> str:
+        """
+        Kiểu trích xuất thứ 2: Tổng hợp CV thành đoạn văn bản mô tả dài 
+        để phục vụ mô hình SBERT Fine-tuned (So sánh đoạn văn vs đoạn văn).
+        """
+        prompt = f"""
+        Role: Technical Recruiter.
+        Task: Summarize the candidate's professional experience, skills, technologies, and projects from the resume text into a concise narrative paragraph.
+        
+        CRITICAL CONSTRAINTS:
+        1. Output ONLY the plain text paragraph summarizing their technical backgrounds.
+        2. Do not use JSON formatting, bullet points, headers, or any markdown.
+        3. Match the writing style of a job applicant describing their experience.
+
+        RESUME TEXT:
+        {clean_text}
+        """
+        try:
+            response = ollama.chat(
+                model=self.model_name,
+                messages=[{'role': 'user', 'content': prompt}],
+                options={'temperature': 0.2}
+            )
+            return response['message']['content'].strip()
+        except Exception as e:
+            print(f"Lỗi trích xuất dạng văn bản: {e}")
+            # Fallback về text sạch ban đầu nếu LLM lỗi
+            return clean_text[:1000]
 
     
