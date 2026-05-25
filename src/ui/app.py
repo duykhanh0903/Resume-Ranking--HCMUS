@@ -752,120 +752,7 @@ elif st.session_state.current_page == "dashboard":
     st.markdown("---")
 
     # ══════════════════════════════════════════════════════════
-    # ROW 3: CANDIDATE RANKING TABLE (3 cột điểm + filter)
-    # ══════════════════════════════════════════════════════════
-    st.subheader("🏆 Candidate Ranking")
-    st.caption(f"Final Score = ATS × **{w_ats}%** + AI × **{w_ai}%**")
-
-    if comparisons:
-        all_roles = sorted(set(c["job_role"] for c in comparisons if c.get("job_role")))
-
-        f1, f2, f3 = st.columns([2, 2, 6])
-        with f1:
-            role_filter = st.selectbox(
-                "Job Role", ["— Tất cả —"] + all_roles, key="dash_role_f"
-            )
-        with f2:
-            status_filter = st.selectbox(
-                "Trạng thái",
-                ["— Tất cả —", "pending", "shortlisted", "rejected", "hired"],
-                key="dash_status_f"
-            )
-
-        filtered = comparisons
-        if role_filter != "— Tất cả —":
-            filtered = [c for c in filtered if c.get("job_role") == role_filter]
-        if status_filter != "— Tất cả —":
-            filtered = [c for c in filtered if c.get("status") == status_filter]
-
-        # Sắp xếp theo Final Score tính lại
-        filtered = sorted(filtered, key=lambda x: x["_final_computed"], reverse=True)
-
-        STATUS_ICON = {
-            "pending":     "⏳ Pending",
-            "shortlisted": "✅ Shortlisted",
-            "rejected":    "❌ Rejected",
-            "hired":       "🎉 Hired",
-        }
-
-        rows = []
-        for i, c in enumerate(filtered[:50]):
-            cand = c.get("candidates") or {}
-            ai_display = c["_ai_score_100"]
-            rows.append({
-                "#":             i + 1,
-                "Tên":           cand.get("full_name") or "N/A",
-                "Job Role":      c.get("job_role", ""),
-                "🔵 ATS":        int(c.get("ats_score") or 0),
-                "🟣 AI Score":   int(ai_display) if ai_display is not None else None,
-                "🏅 Final":      c["_final_computed"],
-                "Trạng thái":    STATUS_ICON.get(c.get("status", "pending"), "⏳ Pending"),
-                "_id":           c.get("id"),
-            })
-
-        df_rank = pd.DataFrame(rows)
-
-        st.dataframe(
-            df_rank.drop(columns=["_id"]),
-            column_config={
-                "#": st.column_config.NumberColumn(width="small"),
-                "🔵 ATS": st.column_config.ProgressColumn(
-                    "🔵 ATS", format="%d%%", min_value=0, max_value=100
-                ),
-                "🟣 AI Score": st.column_config.ProgressColumn(
-                    "🟣 AI Score", format="%d%%", min_value=0, max_value=100
-                ),
-                "🏅 Final": st.column_config.ProgressColumn(
-                    "🏅 Final", format="%.1f%%", min_value=0, max_value=100
-                ),
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=min(450, 55 + len(rows) * 35),
-        )
-
-        st.caption(
-            f"Displaying {len(rows)}/{len(filtered)} candidates  |  "
-            f"{'⚠️ AI Score column is empty = SBERT not run for this CV' if any(r['🟣 AI Score'] is None for r in rows) else '✅ All 3 scores available'}"
-        )
-
-        # ── Cập nhật status ───────────────────────────────────
-        with st.expander("✏️ Cập nhật trạng thái ứng viên"):
-            u1, u2, u3 = st.columns([3, 2, 1])
-            with u1:
-                id_map = {
-                    f"#{r['#']} — {r['Tên']} ({r['Job Role']})": r["_id"]
-                    for r in rows
-                }
-                sel_label = st.selectbox("Chọn ứng viên", list(id_map.keys()), key="upd_cand")
-            with u2:
-                new_status = st.selectbox(
-                    "Trạng thái mới",
-                    ["pending", "shortlisted", "rejected", "hired"],
-                    key="upd_status"
-                )
-            with u3:
-                st.write("")
-                st.write("")
-                if st.button("💾 Lưu", use_container_width=True, key="upd_btn"):
-                    try:
-                        db = get_supabase()
-                        db.table("job_comparisons")\
-                          .update({"status": new_status})\
-                          .eq("id", id_map[sel_label])\
-                          .execute()
-                        st.success(f"✅ Đã cập nhật '{new_status}'")
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
-    else:
-        st.info("Chưa có dữ liệu ranking.")
-
-    st.markdown("---")
-
-    # ══════════════════════════════════════════════════════════
-    # ROW 4: SCORE DISTRIBUTION (3 loại điểm song song)
+    # ROW 3: SCORE DISTRIBUTION
     # ══════════════════════════════════════════════════════════
     st.subheader("📊 Score Distribution")
 
@@ -930,7 +817,7 @@ elif st.session_state.current_page == "dashboard":
                 c2.metric("🟡 Trung (50–74)", mid)
                 c3.metric("🟢 Cao (≥75)",     hi)
         else:
-            st.info("⚠️ No AI Scores available — SBERT pipeline not run or sbert_score is None in DB.")
+            st.info("⚠️ No AI Scores available")
 
     with tab3:
         fig = make_hist(final_list, "#0ea5e9", "Final Score")
@@ -1035,26 +922,6 @@ elif st.session_state.current_page == "dashboard":
 
     st.markdown("---")
 
-    # ══════════════════════════════════════════════════════════
-    # ROW 6: RECENT CANDIDATES
-    # ══════════════════════════════════════════════════════════
-    st.subheader("👤 Ứng Viên Mới Nhất")
-    if candidates:
-        recent = sorted(candidates, key=lambda x: x["created_at"], reverse=True)[:10]
-        st.dataframe(
-            pd.DataFrame([{
-                "Thời gian":   c["created_at"][:16].replace("T", " "),
-                "Tên":         c.get("full_name") or "N/A",
-                "Email":       c.get("email") or "—",
-                "Phone":       c.get("phone") or "—",
-                "Kinh nghiệm": f"{c.get('total_exp_years') or '?'} yr",
-                "File":        c.get("file_name", ""),
-            } for c in recent]),
-            hide_index=True,
-            use_container_width=True,
-        )
-    else:
-        st.info("No candidates available in the system.")
 # # ------------------------------------------
 # # TRANG 4: JOB SEARCH
 # # ------------------------------------------
