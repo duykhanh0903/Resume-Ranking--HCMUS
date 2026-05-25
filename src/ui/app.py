@@ -457,8 +457,9 @@ elif st.session_state.current_page == "ranking":
             for i, r in enumerate(rows):
                 cand   = r.get("candidates") or {}
                 ai_raw = r.get("sbert_score")
-                ai_pct = round(float(ai_raw) * 100, 1) if ai_raw is not None else None
-                final  = r.get("_final", round(float(r.get("ats_score") or 0), 1))
+                ai_pct = round(float(ai_raw), 1) if ai_raw is not None else None
+                final_raw = r.get("_final")
+                final = round(float(final_raw) / 100, 1) if final_raw is not None else round(float(r.get("ats_score") or 0), 1)
                 table_rows.append({
                     "#":           i + 1,
                     "Name":        cand.get("full_name") or "—",

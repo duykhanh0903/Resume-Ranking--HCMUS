@@ -36,8 +36,8 @@ keys = get_all_groq_keys()
 if not keys:
     raise RuntimeError("GROQ_API_KEY_X missing in .env file")
 
-# Khởi tạo Agent với key đầu tiên (hoặc có thể viết logic xoay vòng key tại đây)
-recruiter_agent = RecruitAIAgent(api_key=keys[0])
+# Khởi tạo Agent với key
+agents_pool = [RecruitAIAgent(api_key=k) for k in keys]
 
 @router.post("/analyze_ai")
 async def analyze_with_ai(
@@ -101,12 +101,45 @@ async def analyze_with_ai(
         jd_skills = JOB_ROLES[job_category][job_role].get("required_skills", [])
         jd_dict = {"required_skills": jd_skills, "full_description": jd_text}
         
-        result = await recruiter_agent.run_analysis(
-            jd=jd_dict, 
-            resume=resume_json, 
-            raw_text=clean_text,
-            calculated_score=real_sbert_score
-        )
+        result = {}
+        # 🌟 CƠ CHẾ XOAY VÒNG KEY (FALLBACK)
+        for i, agent in enumerate(agents_pool):
+            try:
+                result = await agent.run_analysis(
+                    jd=jd_dict, 
+                    resume=resume_json, 
+                    raw_text=clean_text,
+                    calculated_score=real_sbert_score
+                )
+                
+                # Kiểm tra xem Groq có trả về chuỗi JSON chứa lỗi (ví dụ: HTTP 429 Rate Limit) không
+                if isinstance(result, dict) and "error" in result:
+                    print(f"⚠️ [Cảnh báo] Key số {i+1} gặp lỗi: {result['error'][:50]}... Đang tự động chuyển sang Key tiếp theo!")
+                    continue # Bỏ qua, chạy vòng lặp với Agent tiếp theo
+                
+                # Nếu chạy mượt, không có chữ "error", lập tức thoát vòng lặp
+                break
+                
+            except Exception as e:
+                # Bắt luôn cả những lỗi mạng bất ngờ khiến thư viện crash
+                print(f"⚠️ [Cảnh báo] Key số {i+1} văng lỗi exception: {e}. Đang chuyển sang Key tiếp theo!")
+                continue
+
+        # In Debug để theo dõi
+        print("====== DEBUG AGENT RESULT ======")
+        if isinstance(result, dict) and "error" not in result and result:
+            print(f"✅ Phân tích thành công!")
+        else:
+            print("❌ Tất cả 5 Keys đều đã cạn kiệt Token hoặc bị lỗi hệ thống!")
+            # Trả về một block an toàn để UI không bị sập (hiện 0%)
+            result = {
+                "match_score": real_sbert_score,
+                "reasoning": "Hệ thống AI hiện đang quá tải do vượt giới hạn API. Điểm số phía trên được tính toán hoàn toàn bằng SBERT Model. Vui lòng quay lại tính năng này sau 10-15 phút.",
+                "verified_strengths": [],
+                "warnings": ["Tất cả API keys dự phòng đều đã chạm ngưỡng giới hạn."],
+                "interview_suggestions": []
+            }
+        print("================================")
 
         candidate_id = None
         try:
