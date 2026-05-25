@@ -8,6 +8,10 @@ import requests
 # ==========================================
 st.set_page_config(page_title="RecruitAI", layout="wide", initial_sidebar_state="expanded")
 
+if "auth_user"  not in st.session_state: st.session_state["auth_user"]  = None
+if "auth_token" not in st.session_state: st.session_state["auth_token"] = None
+if "auth_role"  not in st.session_state: st.session_state["auth_role"]  = None
+
 # Khởi tạo state để theo dõi trang hiện tại
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "analyzer"
