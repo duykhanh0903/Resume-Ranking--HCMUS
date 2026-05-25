@@ -51,7 +51,7 @@ def logout():
 
 
 def is_logged_in() -> bool:
-    return "auth_user" in st.session_state
+    return st.session_state.get("auth_user") is not None 
 
 
 def is_admin() -> bool:

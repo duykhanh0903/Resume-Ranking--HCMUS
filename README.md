@@ -52,15 +52,21 @@ The system follows a modular client-server architecture:
 ## 📂 Repository Structure
 ```text
 project-root/
-├── src/                # Core source code
-│   ├── api/            # FastAPI implementation
-│   ├── pipelines/      # Training & processing scripts
-│   └── ui/             # Streamlit interface
-├── data/               # Data management scripts and local files
-├── models/             # Trained SBERT checkpoints
-├── configs/            # Configuration files
-├── tests/              # Unit tests for core logic
-└── requirements.txt    # Dependency management
+├── src/                    # Core source code
+│   ├── api/               # FastAPI routers (analyzer, builder, ranking, jobsearch)
+│   ├── engine/            # AI Agent (LangGraph + Groq) + SBERT tools
+│   ├── pipelines/         # Data processing, training, evaluation, HPO
+│   ├── utils/             # Parser, Extractor, Scorer, Supabase client
+│   └── ui/                # Streamlit multi-page frontend (app.py)
+├── data/                  # Managed by DVC (raw + processed)
+├── models/                # Trained SBERT checkpoints (DVC-tracked)
+├── configs/               # Job role definitions (JOB_ROLES dict)
+├── standards/             # Scoring criteria JSON per role
+├── tests/                 # Unit test scaffolding
+├── Dockerfile             # Containerization
+├── requirements.txt       # Python dependencies
+└── README.md              # Setup, inference guide
+
 ```
 
 ## 🛠️ Installation
