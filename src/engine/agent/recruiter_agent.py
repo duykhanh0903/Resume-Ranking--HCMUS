@@ -58,8 +58,8 @@ class RecruitAIAgent:
         response = self.llm_with_tools.invoke(messages)
         return {"messages": [response]}
 
-    async def run_analysis(self, jd: dict, resume: dict, raw_text: str) -> dict:
-        input_text = f"JD: {json.dumps(jd, ensure_ascii=False)}\nResume JSON: {json.dumps(resume, ensure_ascii=False)}\nRaw Text: {raw_text}"
+    async def run_analysis(self, jd: dict, resume: dict, raw_text: str, calculated_score: float) -> dict:
+        input_text = f"JD: {json.dumps(jd, ensure_ascii=False)}\nResume JSON: {json.dumps(resume, ensure_ascii=False)}\nCalculated SBERT Match Score: {calculated_score}\nRaw Text: {raw_text}"
         
         try:
             inputs = {"messages": [HumanMessage(content=input_text)]}

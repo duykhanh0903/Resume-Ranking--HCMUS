@@ -1,7 +1,28 @@
 import os
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+import tempfile, shutil
+from pathlib import Path
+
 from src.engine.agent.recruiter_agent import RecruitAIAgent
+from src.engine.tools.sbert_tools import calculate_overall_match
+from src.utils.parser import ResumeBlockParser
+from src.utils.extractor import ResumeExtractor
+from src.utils.configs.job_role import JOB_ROLES
+from src.utils.configs.job_descriptions import JOB_DESCRIPTIONS
+
+from src.engine.tools.sbert_tools import sbert_model, calibrate_sbert_score
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 from dotenv import load_dotenv
+
+from src.utils.supabase_client import (
+    upsert_candidate,
+    upsert_extracted_profile,
+    save_job_comparison
+)
+
+_parser = ResumeBlockParser()
+_extractor = ResumeExtractor(model_name='llama3')
 
 load_dotenv()
 
@@ -20,21 +41,118 @@ recruiter_agent = RecruitAIAgent(api_key=keys[0])
 
 @router.post("/analyze_ai")
 async def analyze_with_ai(
-    jd_json: dict = Body(..., description="JSON chứa thông tin Job Description"),
-    resume_json: dict = Body(..., description="JSON chứa thông tin Resume"),
-    raw_text: str = Body("", description="Văn bản thô của CV để quét chuyên sâu")
+    job_category: str = Form(...),
+    job_role: str = Form(...),
+    resume_file: UploadFile = File(...)
 ):
-    if not recruiter_agent:
-        raise HTTPException(status_code=500, detail="Thiếu GROQ_API_KEY trong môi trường.")
+    # 1. Lấy JD từ config
+    jd_text = ""
+    if job_category in JOB_DESCRIPTIONS and job_role in JOB_DESCRIPTIONS[job_category]:
+        jd_text = JOB_DESCRIPTIONS[job_category][job_role]
         
+    if not jd_text:
+        raise HTTPException(status_code=400, detail="Không tìm thấy văn bản mô tả JD cho vị trí này.")
+
+    # 2. Đọc và xử lý file CV tải lên
+    file_bytes = await resume_file.read()
+    tmp_dir = tempfile.mkdtemp()
+    tmp_path = Path(tmp_dir) / resume_file.filename
+    
     try:
-        result = await recruiter_agent.run_analysis(jd_json, resume_json, raw_text)
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+        tmp_path.write_bytes(file_bytes)
+        raw_blocks, embedded_links = _parser.parse_file(str(tmp_path))
+        clean_text = _parser.restructure_data(raw_blocks)
+
+        if not clean_text or len(clean_text.strip()) < 10:
+            raise HTTPException(
+                status_code=422, 
+                detail="Không thể trích xuất văn bản. File có thể là ảnh scan."
+            )
+        
+        doc_type = _extractor.detect_document_type(clean_text)
+        if doc_type != 'resume':
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Tài liệu tải lên dường như không phải CV (Phát hiện: {doc_type.upper()}). Vui lòng tải lên CV hợp lệ."
+            )
+        
+        # ── THỰC HIỆN ĐỒNG THỜI 2 KIỂU TRÍCH XUẤT ──
+        # Kiểu 1: Trích xuất JSON có cấu trúc để hiển thị thông tin ứng viên lên giao diện (UI)
+        resume_json = _extractor.extract_structured_data(clean_text, embedded_links)
+        
+        # Kiểu 2: Trích xuất dạng khối văn bản liên tục phục vụ cho mô hình SBERT fine-tuned
+        resume_narrative = _extractor.extract_narrative_text(clean_text)
+
+        if not resume_json:
+            raise HTTPException(status_code=500, detail="Lỗi trích xuất cấu hình JSON.")
+
+        # 3. Tính điểm bằng mô hình SBERT Fine-tuned chuẩn xác (Đoạn văn vs Đoạn văn)
+        # Mã hóa chuỗi văn bản dài theo đúng cấu trúc lúc train
+        jd_embedding = sbert_model.encode([jd_text])
+        resume_embedding = sbert_model.encode([resume_narrative])
+        
+        # Tính toán độ tương đồng Cosine
+        similarity = cosine_similarity(jd_embedding, resume_embedding)[0][0]
+        raw_score = float(similarity)
+        real_sbert_score = calibrate_sbert_score(raw_score)
+
+        # 4. Truyền toàn bộ ngữ cảnh thực tế cho LangGraph Agent
+        # Lấy mảng kỹ năng từ job_role cũ gửi cho Agent để nó dùng làm danh sách kiểm tra (Checklist)
+        jd_skills = JOB_ROLES[job_category][job_role].get("required_skills", [])
+        jd_dict = {"required_skills": jd_skills, "full_description": jd_text}
+        
+        result = await recruiter_agent.run_analysis(
+            jd=jd_dict, 
+            resume=resume_json, 
+            raw_text=clean_text,
+            calculated_score=real_sbert_score
+        )
+
+        candidate_id = None
+        try:
+            contact = resume_json.get("contact", {}) or {}
             
+            # 5.1 Lưu/Cập nhật Candidate
+            candidate = upsert_candidate(
+                file_name=resume_file.filename,
+                file_content=file_bytes,
+                full_name=resume_json.get("full_name"),
+                email=contact.get("email"),
+                phone=contact.get("phone"),
+                total_exp_years=resume_json.get("total_exp_years"),
+            )
+            
+            if candidate and "id" in candidate:
+                candidate_id = candidate["id"]
+                
+                # 5.2 Lưu Extracted Profile (JSON của Ollama)
+                upsert_extracted_profile(
+                    candidate_id=candidate_id,
+                    raw_json=resume_json
+                )
+
+                # 5.3 LƯU ĐIỂM SBERT VÀO BẢNG JOB_COMPARISONS
+                found_skills = resume_json.get("skills", {}).get("technical", [])
+                
+                save_job_comparison(
+                    candidate_id=candidate_id,
+                    job_role=job_role,
+                    job_category=job_category,
+                    ats_score=None, # Luồng này là luồng AI, ATS Score để null
+                    sbert_score=real_sbert_score, # <--- ĐÃ LƯU ĐIỂM SBERT
+                    final_score=real_sbert_score, # Lấy điểm SBERT làm điểm Final để rank
+                    found_skills=found_skills,
+                    missing_skills=result.get("warnings", []) # Lấy những kỹ năng thiếu từ Agent
+                )
+        except Exception as db_err:
+            print(f"⚠️ [DB Warning] Không thể lưu vào DB: {db_err}")
+        
         return {
             "status": "success",
+            "candidate_id": candidate_id,
+            "analysis_id": None,
+            "extracted_profile": resume_json, 
             "analysis": result
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
