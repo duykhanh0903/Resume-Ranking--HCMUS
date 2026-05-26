@@ -54,6 +54,7 @@ dvc-objects==5.2.0
 dvc-render==1.0.2
 dvc-studio-client==0.22.0
 dvc-task==0.40.2
+dvc-s3
 entrypoints==0.4
 Faker==40.11.0
 fastapi==0.135.3
