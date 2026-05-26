@@ -76,15 +76,21 @@ project-root/
    git clone https://github.com/duykhanh0903/Resume-Ranking--HCMUS.git
    cd Resume-Ranking--HCMUS
    ```
-2. **Install dependencies:**
+2. **Inject Required Assets:**
+   Extract the downloaded files from the Google Drive link (attached in HCMUS Moodle) directly into the root directory of this project. Ensure the following items are present in the root folder before proceeding:
+   * data/ (Sample resumes and processed datasets)
+   * models/ (Fine-tuned SBERT model weights)
+   * vendor/ (Third-party dependencies/configs)
+   * .env (API keys and database credentials)
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-3. **Launch the Backend:**
+4. **Launch the Backend:**
    ```bash
    uvicorn src.api.main:app --reload
    ```
-4. **Launch the Frontend:**
+5. **Launch the Frontend:**
 
    Open a new terminal and run:
    ```bash
