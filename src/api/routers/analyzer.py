@@ -22,7 +22,7 @@ from src.utils.supabase_client import (
 )
 
 _parser = ResumeBlockParser()
-_extractor = ResumeExtractor(model_name='llama3')
+_extractor = ResumeExtractor()
 
 load_dotenv()
 

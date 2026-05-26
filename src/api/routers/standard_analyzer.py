@@ -18,7 +18,7 @@ router = APIRouter()
 
 # Module-level singletons — khởi tạo một lần, dùng lại cho mọi request
 _parser    = ResumeBlockParser()
-_extractor = ResumeExtractor(model_name='llama3')
+_extractor = ResumeExtractor()
 _scorer    = ResumeScorer()
 
 

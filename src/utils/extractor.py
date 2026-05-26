@@ -1,10 +1,16 @@
+import os
 import re
 import json
-import ollama
+from groq import Groq
 
 class ResumeExtractor:
-    def __init__(self, model_name='llama3'):
+    def __init__(self, model_name='llama-3.3-70b-versatile'):
         self.model_name = model_name
+
+        self.keys = [os.getenv(f"GROQ_API_KEY_{i}") for i in range(1, 6) if os.getenv(f"GROQ_API_KEY_{i}")]
+        if not self.keys:
+            print("⚠️ CẢNH BÁO: Không tìm thấy GROQ_API_KEY trong .env")
+
         # Định nghĩa các tập từ khóa đặc trưng
         self.document_types = {
             'resume': ['experience', 'education', 'skills', 'projects', 'summary'],
@@ -28,6 +34,36 @@ class ResumeExtractor:
         # Chỉ công nhận nếu điểm tin cậy > 0.15
         return best_match[0] if best_match[1] > 0.15 else 'unknown'
 
+    def _call_groq_with_fallback(self, prompt: str, is_json=False) -> str:
+        """Gọi Groq API tự động xoay vòng key nếu bị Rate Limit"""
+        for i, key in enumerate(self.keys):
+            try:
+                client = Groq(api_key=key)
+                params = {
+                    "model": self.model_name,
+                    "messages": [{'role': 'user', 'content': prompt}],
+                    "temperature": 0 if is_json else 0.2
+                }
+                if is_json:
+                    params["response_format"] = {"type": "json_object"}
+                    
+                response = client.chat.completions.create(**params)
+                return response.choices[0].message.content
+            except Exception as e:
+                print(f"⚠️ [Extractor] Key {i+1} lỗi: {e}. Đang chuyển key...")
+                continue
+        return None
+
+    def _mask_pii(self, text: str, regex_info: dict) -> str:
+        """Kỹ thuật che giấu dữ liệu cá nhân (Ethics/Privacy)"""
+        masked_text = text
+        for email in regex_info.get("emails", []):
+            masked_text = masked_text.replace(email, "[REDACTED_EMAIL]")
+        for phone in regex_info.get("phones", []):
+            masked_text = masked_text.replace(phone, "[REDACTED_PHONE]")
+        for link in regex_info.get("links", []):
+            masked_text = masked_text.replace(link, "[REDACTED_URL]")
+        return masked_text
 
     def _extract_by_regex(self, text: str, embedded_links: list = None) -> dict:
         email = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
@@ -59,6 +95,7 @@ class ResumeExtractor:
 
     def extract_structured_data(self, clean_text: str, embedded_links: list = None) -> dict:
         regex_info = self._extract_by_regex(clean_text, embedded_links)
+        masked_text = self._mask_pii(clean_text, regex_info)
         
         prompt = f"""
         Role: Expert Resume Data Extractor.
@@ -74,9 +111,9 @@ class ResumeExtractor:
         {{
             "full_name": "Extract exactly as written",
             "contact": {{
-                "email": "null if missing",
-                "phone": "null if missing",
-                "address": "null if missing"
+                "email": "null",
+                "phone": "null",
+                "address": "null"
             }},
             "education": [
                 {{ 
@@ -85,7 +122,7 @@ class ResumeExtractor:
                     "institution": "Full school name",
                     "graduation_year": "The four-digit end year of study"
                 }}
-            ,
+            ],
             "summary": "Original text only, null if missing",
             "total_exp_years": "Numeric value only",
             "experience": [
@@ -103,33 +140,42 @@ class ResumeExtractor:
         }}
 
         RESUME TEXT:
-        {clean_text}
+        {masked_text}
         """
+        response_content = self._call_groq_with_fallback(prompt, is_json=True)
+        if not response_content:
+            return None
         try:
-            response = ollama.chat(
-                model=self.model_name,
-                messages=[{'role': 'user', 'content': prompt}],
-                format='json',
-                options={'temperature': 0} # Để kết quả ổn định nhất
-            )
-            llm_data = json.loads(response['message']['content'])
+            llm_data = json.loads(response_content)
             
+            # 5. Đắp lại thông tin thật từ Regex vào output JSON
+            llm_contact = llm_data.get('contact', {}) or {}
+            
+            final_email = regex_info['emails'][0] if regex_info['emails'] else llm_contact.get('email')
+            final_phone = regex_info['phones'][0] if regex_info['phones'] else llm_contact.get('phone')
+            
+            if final_email == "[REDACTED_EMAIL]": final_email = None
+            if final_phone == "[REDACTED_PHONE]": final_phone = None
+
             final_contact = {
-                "email": regex_info['emails'][0] if regex_info['emails'] else llm_data.get('contact', {}).get('email'),
-                "phone": regex_info['phones'][0] if regex_info['phones'] else llm_data.get('contact', {}).get('phone'),
-                "address": llm_data.get('contact', {}).get('address'), # Địa chỉ thường LLM trích xuất tốt hơn Regex
-                "links": regex_info['links'] # Lưu toàn bộ danh sách link LinkedIn/GitHub
+                "email": final_email,
+                "phone": final_phone,
+                "address": llm_contact.get('address'),
+                "links": regex_info['links']
             }
             
-            # Ghi đè lại vào một key duy nhất
             llm_data['contact'] = final_contact
+            llm_data['email'] = final_contact['email']
+            llm_data['phone'] = final_contact['phone']
+            llm_data['links'] = final_contact['links']
             
-            # Xóa bỏ các key thừa nếu cần
-            if 'contact_info' in llm_data: del llm_data['contact_info']
+            if 'contact_info' in llm_data: 
+                del llm_data['contact_info']
+                
             return llm_data
             
         except Exception as e:
-            print(f"Lỗi Extraction: {e}")
+            print(f"Lỗi Parse JSON từ Groq: {e}")
             return None
         
     def extract_narrative_text(self, clean_text: str) -> str:
@@ -137,6 +183,9 @@ class ResumeExtractor:
         Kiểu trích xuất thứ 2: Tổng hợp CV thành đoạn văn bản mô tả dài 
         để phục vụ mô hình SBERT Fine-tuned (So sánh đoạn văn vs đoạn văn).
         """
+        regex_info = self._extract_by_regex(clean_text)
+        masked_text = self._mask_pii(clean_text, regex_info)
+
         prompt = f"""
         Role: Technical Recruiter.
         Task: Summarize the candidate's professional experience, skills, technologies, and projects from the resume text into a concise narrative paragraph.
@@ -147,15 +196,11 @@ class ResumeExtractor:
         3. Match the writing style of a job applicant describing their experience.
 
         RESUME TEXT:
-        {clean_text}
+        {masked_text}
         """
         try:
-            response = ollama.chat(
-                model=self.model_name,
-                messages=[{'role': 'user', 'content': prompt}],
-                options={'temperature': 0.2}
-            )
-            return response['message']['content'].strip()
+            response_content = self._call_groq_with_fallback(prompt, is_json=False)
+            return response_content.strip() if response_content else clean_text[:1000]
         except Exception as e:
             print(f"Lỗi trích xuất dạng văn bản: {e}")
             # Fallback về text sạch ban đầu nếu LLM lỗi
