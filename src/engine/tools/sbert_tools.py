@@ -2,14 +2,17 @@ from langchain_core.tools import tool
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+import gc
 
-# Load mô hình SBERT đã fine-tune (chỉ load 1 lần khi app start)
-try:
-    sbert_model = SentenceTransformer("models/sbert_resume_ranking")
-    print("✅ Đã load SBERT fine-tuned thành công.")
-except Exception as e:
-    print(f"⚠️ Không tìm thấy model fine-tune, dùng base model: {e}")
-    sbert_model = SentenceTransformer('all-MiniLM-L6-v2')
+_sbert_instance = None
+def get_sbert_model():
+    global _sbert_instance
+    if _sbert_instance is None:
+        try:
+            _sbert_instance = SentenceTransformer("models/sbert_resume_ranking")
+        except Exception:
+            _sbert_instance = SentenceTransformer('all-MiniLM-L6-v2')
+    return _sbert_instance
 
 def calculate_overall_match(jd_skills: list, resume_skills: list) -> float:
     """
@@ -22,10 +25,10 @@ def calculate_overall_match(jd_skills: list, resume_skills: list) -> float:
     total_score = 0.0
     
     # Mã hóa toàn bộ skill của ứng viên 1 lần duy nhất để tiết kiệm chi phí tính toán
-    resume_embs = sbert_model.encode(resume_skills)
+    resume_embs = get_sbert_model().encode(resume_skills)
     
     for req_skill in jd_skills:
-        req_emb = sbert_model.encode([req_skill])
+        req_emb = get_sbert_model().encode([req_skill])
         similarities = cosine_similarity(req_emb, resume_embs)[0]
         best_match_score = float(np.max(similarities))
         
@@ -36,6 +39,7 @@ def calculate_overall_match(jd_skills: list, resume_skills: list) -> float:
     # Tính trung bình điểm trên thang 100
     avg_score = (total_score / len(jd_skills)) * 100
     
+    gc.collect()
     # Đảm bảo điểm số không vượt quá 100 và làm tròn 1 chữ số thập phân
     return round(min(avg_score, 100.0), 1)
 
@@ -90,11 +94,12 @@ def verify_semantic_similarity(query: str, context_list: list) -> dict:
     if not context_list:
         return {"score": 0.0, "best_match": ""}
     
-    query_emb = sbert_model.encode([query])
-    context_embs = sbert_model.encode(context_list)
+    query_emb = get_sbert_model().encode([query])
+    context_embs = get_sbert_model().encode(context_list)
     similarities = cosine_similarity(query_emb, context_embs)[0]
     
     idx = np.argmax(similarities)
+    gc.collect()
     return {
         "score": float(similarities[idx]),
         "best_match": str(context_list[idx])
@@ -114,8 +119,8 @@ def deep_scan_raw_text(skill_name: str, raw_text: str) -> str:
     if not sentences: 
         return "Not found"
     
-    query_emb = sbert_model.encode([skill_name])
-    context_embs = sbert_model.encode(sentences)
+    query_emb = get_sbert_model().encode([skill_name])
+    context_embs = get_sbert_model().encode(sentences)
     similarities = cosine_similarity(query_emb, context_embs)[0]
     
     idx = np.argmax(similarities)
@@ -124,4 +129,5 @@ def deep_scan_raw_text(skill_name: str, raw_text: str) -> str:
     if best_score > 0.6: # Ngưỡng tin cậy
         return f"Found evidence in text: '...{sentences[idx]}...'"
     
+    gc.collect()
     return "Not found"
