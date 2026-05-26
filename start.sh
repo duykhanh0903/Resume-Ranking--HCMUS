@@ -1,23 +1,45 @@
 #!/bin/bash
 
-git init
+# ÉP CÁC THƯ VIỆN AI CHỈ CHẠY 1 LUỒNG ĐỂ TIẾT KIỆM HÀNG TRĂM MB RAM
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
 
-echo "📥 Đang tải SBERT model từ DagsHub thông qua DVC..."
-# Cấu hình xác thực DVC với DagsHub bằng biến môi trường
-dvc remote modify origin --local auth basic
-dvc remote modify origin --local user $DAGSHUB_REPO_OWNER
-dvc remote modify origin --local password $DAGSHUB_USER_TOKEN
-dvc remote modify storage --local access_key_id $AWS_ACCESS_KEY_ID
-dvc remote modify storage --local secret_access_key $AWS_SECRET_ACCESS_KEY
+if [ "$SERVICE_TYPE" == "backend" ]; then
+    echo "⚙️ KHỞI ĐỘNG HỆ THỐNG: BACKEND FASTAPI"
+    
+    # Khởi tạo Git giả lập cho DVC hoạt động
+    git init
+    
+    echo "📥 Đang tải SBERT model từ DagsHub thông qua DVC..."
+    dvc remote modify origin --local auth basic
+    dvc remote modify origin --local user $DAGSHUB_REPO_OWNER
+    dvc remote modify origin --local password $DAGSHUB_USER_TOKEN
+    
+    dvc remote modify storage --local access_key_id $AWS_ACCESS_KEY_ID
+    dvc remote modify storage --local secret_access_key $AWS_SECRET_ACCESS_KEY
+    
+    # Kéo mô hình về máy chủ Backend
+    dvc pull
+    
+    echo "🚀 Đang kích hoạt Backend FastAPI ở cổng $PORT..."
+    uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
 
-# Kéo model về (chỉ kéo những file có trong .dvc)
-dvc pull
+elif [ "$SERVICE_TYPE" == "frontend" ]; then
+    echo "⚙️ KHỞI ĐỘNG HỆ THỐNG: FRONTEND STREAMLIT"
+    echo "🎨 Đang kích hoạt Frontend Streamlit ở cổng $PORT..."
+    
+    # Frontend chạy trực tiếp độc lập, không tải mô hình, tắt tính năng quét file đổi mã nguồn để tiết kiệm RAM
+    streamlit run src/ui/app.py \
+        --server.port $PORT \
+        --server.address 0.0.0.0 \
+        --server.enableCORS false \
+        --server.enableWebsocketCompression false \
+        --server.fileWatcherType none
 
-echo "🚀 Đang khởi động Backend FastAPI ở cổng 8000..."
-uvicorn src.api.main:app --host 127.0.0.1 --port 8000 &
-
-echo "⏳ Chờ 3 giây cho Backend ổn định..."
-sleep 30
-
-echo "🎨 Đang khởi động Frontend Streamlit..."
-streamlit run src/ui/app.py --server.port ${PORT:-8501} --server.address 0.0.0.0
+else
+    echo "❌ LỖI: Không xác định được biến SERVICE_TYPE (Phải là 'backend' hoặc 'frontend')."
+    exit 1
+fi
