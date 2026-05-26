@@ -1,5 +1,5 @@
 # 1. Sử dụng hệ điều hành Linux siêu nhẹ có cài sẵn Python 3.10
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 # 2. Tạo thư mục làm việc mặc định bên trong container
 WORKDIR /app
