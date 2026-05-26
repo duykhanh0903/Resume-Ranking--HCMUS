@@ -11,21 +11,6 @@ export NUMEXPR_NUM_THREADS=1
 
 if [ "$SERVICE_TYPE" == "backend" ]; then
     echo "⚙️ KHỞI ĐỘNG HỆ THỐNG: BACKEND FASTAPI"
-    
-    # Khởi tạo Git giả lập cho DVC hoạt động
-    git init
-    
-    echo "📥 Đang tải SBERT model từ DagsHub thông qua DVC..."
-    dvc remote modify origin --local auth basic
-    dvc remote modify origin --local user $DAGSHUB_REPO_OWNER
-    dvc remote modify origin --local password $DAGSHUB_USER_TOKEN
-    
-    dvc remote modify storage --local access_key_id $AWS_ACCESS_KEY_ID
-    dvc remote modify storage --local secret_access_key $AWS_SECRET_ACCESS_KEY
-    
-    # Kéo mô hình về máy chủ Backend
-    dvc pull
-    
     echo "🚀 Đang kích hoạt Backend FastAPI ở cổng $PORT..."
     uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
 

@@ -1,18 +1,27 @@
+import os
+import requests
+from dotenv import load_dotenv
 from langchain_core.tools import tool
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
-import gc
 
-_sbert_instance = None
-def get_sbert_model():
-    global _sbert_instance
-    if _sbert_instance is None:
-        try:
-            _sbert_instance = SentenceTransformer("models/sbert_resume_ranking")
-        except Exception:
-            _sbert_instance = SentenceTransformer('all-MiniLM-L6-v2')
-    return _sbert_instance
+load_dotenv()
+
+HF_API_URL = os.getenv("HF_API_URL")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+def get_embeddings(texts: list) -> list:
+    if not texts: return []
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    try:
+        response = requests.post(HF_API_URL, headers=headers, json={"inputs": texts, "options": {"wait_for_model": True}})
+        if response.status_code == 200:
+            return response.json()
+        print(f"⚠️ Lỗi API Hugging Face: {response.text}")
+        return np.zeros((len(texts), 384)).tolist()
+    except Exception as e:
+        print(f"⚠️ Lỗi mạng HF: {e}")
+        return np.zeros((len(texts), 384)).tolist()
 
 def calculate_overall_match(jd_skills: list, resume_skills: list) -> float:
     """
@@ -25,10 +34,10 @@ def calculate_overall_match(jd_skills: list, resume_skills: list) -> float:
     total_score = 0.0
     
     # Mã hóa toàn bộ skill của ứng viên 1 lần duy nhất để tiết kiệm chi phí tính toán
-    resume_embs = get_sbert_model().encode(resume_skills)
+    resume_embs = get_embeddings(resume_skills)
     
     for req_skill in jd_skills:
-        req_emb = get_sbert_model().encode([req_skill])
+        req_emb = get_embeddings([req_skill])
         similarities = cosine_similarity(req_emb, resume_embs)[0]
         best_match_score = float(np.max(similarities))
         
@@ -39,7 +48,6 @@ def calculate_overall_match(jd_skills: list, resume_skills: list) -> float:
     # Tính trung bình điểm trên thang 100
     avg_score = (total_score / len(jd_skills)) * 100
     
-    gc.collect()
     # Đảm bảo điểm số không vượt quá 100 và làm tròn 1 chữ số thập phân
     return round(min(avg_score, 100.0), 1)
 
@@ -94,12 +102,11 @@ def verify_semantic_similarity(query: str, context_list: list) -> dict:
     if not context_list:
         return {"score": 0.0, "best_match": ""}
     
-    query_emb = get_sbert_model().encode([query])
-    context_embs = get_sbert_model().encode(context_list)
+    query_emb = get_embeddings([query])
+    context_embs = get_embeddings(context_list)
     similarities = cosine_similarity(query_emb, context_embs)[0]
     
     idx = np.argmax(similarities)
-    gc.collect()
     return {
         "score": float(similarities[idx]),
         "best_match": str(context_list[idx])
@@ -119,8 +126,8 @@ def deep_scan_raw_text(skill_name: str, raw_text: str) -> str:
     if not sentences: 
         return "Not found"
     
-    query_emb = get_sbert_model().encode([skill_name])
-    context_embs = get_sbert_model().encode(sentences)
+    query_emb = get_embeddings([skill_name])
+    context_embs = get_embeddings(sentences)
     similarities = cosine_similarity(query_emb, context_embs)[0]
     
     idx = np.argmax(similarities)
@@ -129,5 +136,4 @@ def deep_scan_raw_text(skill_name: str, raw_text: str) -> str:
     if best_score > 0.6: # Ngưỡng tin cậy
         return f"Found evidence in text: '...{sentences[idx]}...'"
     
-    gc.collect()
     return "Not found"

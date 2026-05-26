@@ -11,7 +11,7 @@ from src.utils.configs.job_role import JOB_ROLES
 from src.utils.configs.job_descriptions import JOB_DESCRIPTIONS
 
 import gc
-from src.engine.tools.sbert_tools import get_sbert_model, calibrate_sbert_score
+from src.engine.tools.sbert_tools import get_embeddings, calibrate_sbert_score
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from dotenv import load_dotenv
@@ -89,9 +89,8 @@ async def analyze_with_ai(
 
         # 3. Tính điểm bằng mô hình SBERT Fine-tuned chuẩn xác (Đoạn văn vs Đoạn văn)
         # Mã hóa chuỗi văn bản dài theo đúng cấu trúc lúc train
-        current_model = get_sbert_model()
-        jd_embedding = current_model.encode([jd_text], batch_size=2, show_progress_bar=False)
-        resume_embedding = current_model.encode([resume_narrative], batch_size=2, show_progress_bar=False)
+        jd_embedding = get_embeddings([jd_text])
+        resume_embedding = get_embeddings([resume_narrative])
         
         # Tính toán độ tương đồng Cosine
         similarity = cosine_similarity(jd_embedding, resume_embedding)[0][0]
