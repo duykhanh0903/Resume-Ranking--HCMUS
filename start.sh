@@ -7,6 +7,8 @@ echo "📥 Đang tải SBERT model từ DagsHub thông qua DVC..."
 dvc remote modify origin --local auth basic
 dvc remote modify origin --local user $DAGSHUB_REPO_OWNER
 dvc remote modify origin --local password $DAGSHUB_USER_TOKEN
+dvc remote modify storage --local access_key_id $AWS_ACCESS_KEY_ID
+dvc remote modify storage --local secret_access_key $AWS_SECRET_ACCESS_KEY
 
 # Kéo model về (chỉ kéo những file có trong .dvc)
 dvc pull
