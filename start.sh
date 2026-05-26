@@ -14,10 +14,10 @@ dvc remote modify storage --local secret_access_key $AWS_SECRET_ACCESS_KEY
 dvc pull
 
 echo "🚀 Đang khởi động Backend FastAPI ở cổng 8000..."
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 &
+uvicorn src.api.main:app --host 127.0.0.1 --port 8000 &
 
 echo "⏳ Chờ 3 giây cho Backend ổn định..."
-sleep 3
+sleep 30
 
 echo "🎨 Đang khởi động Frontend Streamlit..."
 streamlit run src/ui/app.py --server.port ${PORT:-8501} --server.address 0.0.0.0
