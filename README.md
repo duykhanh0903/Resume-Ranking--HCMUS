@@ -60,8 +60,6 @@ project-root/
 │   └── ui/                # Streamlit multi-page frontend (app.py)
 ├── data/                  # Managed by DVC (raw + processed)
 ├── models/                # Trained SBERT checkpoints (DVC-tracked)
-├── configs/               # Job role definitions (JOB_ROLES dict)
-├── standards/             # Scoring criteria JSON per role
 ├── tests/                 # Unit test scaffolding
 ├── Dockerfile             # Containerization
 ├── requirements.txt       # Python dependencies
