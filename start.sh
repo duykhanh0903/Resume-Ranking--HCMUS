@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export MALLOC_ARENA_MAX=2
+
 # ÉP CÁC THƯ VIỆN AI CHỈ CHẠY 1 LUỒNG ĐỂ TIẾT KIỆM HÀNG TRĂM MB RAM
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
