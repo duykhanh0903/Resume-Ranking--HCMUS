@@ -1,5 +1,7 @@
 #!/bin/bash
 
+git init
+
 echo "📥 Đang tải SBERT model từ DagsHub thông qua DVC..."
 # Cấu hình xác thực DVC với DagsHub bằng biến môi trường
 dvc remote modify origin --local auth basic
@@ -16,4 +18,4 @@ echo "⏳ Chờ 3 giây cho Backend ổn định..."
 sleep 3
 
 echo "🎨 Đang khởi động Frontend Streamlit..."
-streamlit run src/app.py --server.port ${PORT:-8501} --server.address 0.0.0.0
+streamlit run src/ui/app.py --server.port ${PORT:-8501} --server.address 0.0.0.0

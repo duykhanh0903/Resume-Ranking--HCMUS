@@ -5,7 +5,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # [QUAN TRỌNG] Cài đặt hệ sinh thái Tesseract OCR cho Linux để parser CV dạng ảnh/scan hoạt động
-RUN apt-get update && apt-get install -y tesseract-ocr && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y tesseract-ocr git && rm -rf /var/lib/apt/lists/*
 
 # 3. Copy file requirements.txt vào trước để cài đặt thư viện
 COPY requirements.txt .
