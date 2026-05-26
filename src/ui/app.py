@@ -3,6 +3,8 @@ import streamlit_shadcn_ui as ui
 import pandas as pd
 import requests
 
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
 # ==========================================
 # 0. PAGE CONFIG & ROUTER
 # ==========================================
@@ -96,7 +98,7 @@ if st.session_state.current_page == "analyzer":
     @st.cache_data(ttl=3600)
     def fetch_job_roles_for_ai():
         # Gọi chung endpoint lấy danh sách Job Roles với Standard Analyzer
-        res = requests.get("http://localhost:8000/api/v1/standard-analyzer/job-roles", timeout=10)
+        res = requests.get(f"{API_BASE_URL}/api/v1/standard-analyzer/job-roles", timeout=10)
         res.raise_for_status()
         return res.json()["data"]
 
@@ -145,7 +147,7 @@ if st.session_state.current_page == "analyzer":
             }
             
             try:
-                res = requests.post("http://localhost:8000/api/v1/analyzer/analyze_ai", data=data, files=files)
+                res = requests.post(f"{API_BASE_URL}/api/v1/analyzer/analyze_ai", data=data, files=files)
                 if res.status_code == 200:
                     st.session_state.ai_analysis_result = res.json()
                 else:
@@ -288,7 +290,7 @@ if st.session_state.current_page == "analyzer":
                 try:
                     import requests
                     fb_response = requests.post(
-                        "http://localhost:8000/api/v1/standard-analyzer/feedback",
+                        f"{API_BASE_URL}/api/v1/standard-analyzer/feedback",
                         json={
                             "candidate_id": candidate_id,
                             "analysis_id":  analysis_id,
@@ -372,7 +374,7 @@ elif st.session_state.current_page == "ranking":
 
     # ── NỘI DUNG RANKING (chỉ admin vào được) ────────────────────
     else:
-        API = "http://localhost:8000/api/v1/ranking"
+        API = f"{API_BASE_URL}/api/v1/ranking"
 
         st.write("Compare and rank applicants based on ATS + AI scores.")
         st.markdown("---")
@@ -1076,7 +1078,7 @@ elif st.session_state.current_page == "job_search":
             with st.spinner("Aggregating job portals..."):
                 try:
                     # Đảm bảo FastAPI Backend đang chạy ở cổng 8000
-                    api_url = "http://localhost:8000/api/v1/jobsearch/search"
+                    api_url = f"{API_BASE_URL}/api/v1/jobsearch/search"
                     params = {"keyword": job_query, "location": job_location if job_location else "Remote"}
 
                     response = requests.get(api_url, params=params)
@@ -1449,7 +1451,7 @@ elif st.session_state.current_page == "resume_builder":
 
                         # ── Gọi đúng endpoint hiện có ─────────────────────
                         res = requests.post(
-                            "http://localhost:8000/api/v1/builder/generate",
+                            f"{API_BASE_URL}/api/v1/builder/generate",
                             json=payload,
                             timeout=30,
                         )
@@ -1491,7 +1493,7 @@ elif st.session_state.current_page == "standard_analyzer":
     import requests
     import hashlib
 
-    API_BASE = "http://localhost:8000/api/v1/standard-analyzer"
+    API_BASE = f"{API_BASE_URL}/api/v1/standard-analyzer"
 
     st.caption("RecruitAI > **Standard Analyzer**")
     st.title("Standard Analyzer")
