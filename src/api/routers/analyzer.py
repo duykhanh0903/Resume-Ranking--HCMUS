@@ -90,8 +90,8 @@ async def analyze_with_ai(
         # 3. Tính điểm bằng mô hình SBERT Fine-tuned chuẩn xác (Đoạn văn vs Đoạn văn)
         # Mã hóa chuỗi văn bản dài theo đúng cấu trúc lúc train
         current_model = get_sbert_model()
-        jd_embedding = current_model.encode([jd_text])
-        resume_embedding = current_model.encode([resume_narrative])
+        jd_embedding = current_model.encode([jd_text], batch_size=2, show_progress_bar=False)
+        resume_embedding = current_model.encode([resume_narrative], batch_size=2, show_progress_bar=False)
         
         # Tính toán độ tương đồng Cosine
         similarity = cosine_similarity(jd_embedding, resume_embedding)[0][0]
